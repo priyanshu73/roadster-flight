@@ -2,6 +2,7 @@
 // Stack: Three.js rendering now, Rapier physics + Cesium/OSM city tiles next.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
+import { buildRear } from "./rear.js";
 
 const menu = document.getElementById("menu");
 menu.addEventListener("click", (e) => {
@@ -21,7 +22,7 @@ function startGame(city) {
   const camera = new THREE.PerspectiveCamera(
     60, innerWidth / innerHeight, 0.1, 2000
   );
-  camera.position.set(0, 6, 14);
+  camera.position.set(0, 2.6, 9);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(innerWidth, innerHeight);
@@ -37,18 +38,18 @@ function startGame(city) {
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
-  const car = new THREE.Mesh(
-    new THREE.BoxGeometry(2, 0.6, 4),
-    new THREE.MeshStandardMaterial({ color: 0xc0c8d8 })
-  );
-  car.position.y = 0.4;
+  // Rear-view car (wing, light bar, ROSTR plate, exhausts, thruster plumes)
+  const car = buildRear();
   scene.add(car);
+  camera.position.set(0, 2.6, 9);
+  camera.lookAt(0, 1.8, 0);
+  scene.fog = new THREE.FogExp2(0x05070d, 0.03);
 
   // TODO: WASD driving, Space thruster boost, Shift hop jets, F flip,
   // cop pursuit AI, wanted/damage system, city tile streaming.
 
   renderer.setAnimationLoop(() => {
-    car.rotation.y += 0.01;
+    car.userData.update(performance.now() / 1000);
     renderer.render(scene, camera);
   });
 
