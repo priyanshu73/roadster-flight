@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roadster Flight</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #05070d; overflow: hidden; }
+    #hud {
+      position: fixed; top: 16px; left: 16px; color: #7df9ff;
+      font-family: monospace; font-size: 14px; pointer-events: none;
+    }
+    #menu {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: #fff;
+      font-family: monospace; background: rgba(3, 5, 10, 0.65);
+    }
+    #menu h1 { letter-spacing: 4px; }
+    #menu button {
+      margin: 6px; padding: 10px 24px; background: transparent;
+      color: #7df9ff; border: 1px solid #7df9ff; font-family: monospace;
+      font-size: 16px; cursor: pointer;
+    }
+    #menu button:hover { background: #7df9ff; color: #05070d; }
+  </style>
+</head>
+<body>
+  <div id="hud">ROADSTER FLIGHT - prototype</div>
+  <div id="menu">
+    <h1>ROADSTER FLIGHT</h1>
+    <p>Pick your city</p>
+    <button data-city="new-york">New York</button>
+    <button data-city="tokyo">Tokyo</button>
+    <button data-city="london">London</button>
+    <button data-city="dubai">Dubai</button>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
