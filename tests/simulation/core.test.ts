@@ -4,6 +4,16 @@ import { FixedClock, STEP } from '../../src/core/Clock';
 import { Pressure } from '../../src/vehicle/Pressure';
 
 describe('keyboard actions', () => {
+  it('preserves two complete taps arriving before the next physics tick', () => {
+    const input = new InputBuffer();
+    input.down('KeyC');
+    input.up('KeyC');
+    input.down('KeyC');
+    input.up('KeyC');
+    expect(input.tick().camera).toBe(true);
+    expect(input.tick().camera).toBe(true);
+    expect(input.tick().camera).toBe(false);
+  });
   it('keeps a quick press/release until the next tick and consumes the edge once', () => {
     const input = new InputBuffer();
     input.down('ShiftLeft');

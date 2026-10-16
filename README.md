@@ -6,11 +6,15 @@ Inspired by the Tesla Roadster demo (Oct 15, 2026): SpaceX cold-gas thrusters, a
 
 ## Current status
 
-A working driving prototype now runs on real OpenStreetMap-derived Midtown streets.
-It includes Rapier suspension, acceleration/braking/reverse, boost, hop, a chase
-camera, reset, pause and graphics settings. The hero car and building facades are
-procedural development stand-ins; flight/flips, police, other cities and the final
-reveal-accurate car are still pending.
+The current build integrates the car rear, living city and Heat Clock features from
+PRs #1–#3. Choose **Harbor** for a fictional NYC-inspired district with pedestrians,
+cabs, cafes, a driveable bridge and a swinging/roof-riding courier; choose **Midtown**
+for real OpenStreetMap streets. A crash starts a police pursuit: survive, escape
+sight, avoid capture and beat your saved Heat Clock time.
+
+Rapier owns driving, collisions, boost and hop. The hero car remains procedural;
+sustained flight/flips, inverted driving and the other cities are still pending.
+See [integrated PR coverage](docs/PR_INTEGRATION.md).
 
 Use **Node.js 24** (or compatible Node >=22.12), then:
 
@@ -27,7 +31,8 @@ npm run test:handling        # renderer-free 3D driving suite + CSV/JSON/HTML re
 npm run build               # typecheck and production build
 npx playwright install chromium
 npm run test:browser         # production browser checks
-npm run city:import          # regenerate district from committed vector source
+npm run city:import          # regenerate Midtown from committed vector source
+npm run city:harbor          # regenerate original procedural harbor district
 ```
 
 See [current build status](docs/BUILD_STATUS.md) for verified behaviour and remaining
@@ -68,8 +73,12 @@ City names describe district destinations; whole-city coverage is outside v1.
 - Space: thruster boost
 - Shift: hop jets (one press per hop)
 - F: flip (planned; not implemented in this prototype)
-- C: camera
-- R: reset to a safe road position
+- C: cycle chase, close chase and district overview
+- E: talk to a nearby pedestrian
+- H: horn
+- M: mute
+- R: restart the run (best time retained)
+- Enter: restart after capture
 - Escape: pause/menu
 
 ## Tech plan (don't build everything from scratch)
@@ -98,4 +107,4 @@ their own usage limits and terms, separate from free app hosting.
 5. Visual/audio polish, performance, verification and free Pages release.
 
 See the roadmap for acceptance criteria and the build-status document for what is
-implemented. The New York prototype is a partial milestone-one build, not complete v1.
+implemented. The integrated New York build still leaves flight, globe and other-city milestones open.

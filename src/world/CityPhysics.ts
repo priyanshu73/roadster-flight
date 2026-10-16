@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { ExtrudeGeometry, Shape, Path, Vector2, type BufferGeometry } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Building, City } from './City';
+import { CAFES } from './HarborCity';
 
 /** Shared by rendering, runtime collision and the renderer-free test engine. */
 export function buildingGeometry(building: Building): BufferGeometry {
@@ -22,11 +23,27 @@ export function createCityColliders(data: City, world: RAPIER.World): void {
   const { min, max } = data.bounds;
   const cx = (min[0] + max[0]) / 2,
     cz = (min[1] + max[1]) / 2;
-  world.createCollider(
-    RAPIER.ColliderDesc.cuboid((max[0] - min[0]) / 2 + 50, 0.5, (max[1] - min[1]) / 2 + 50)
-      .setTranslation(cx, -0.5, cz)
-      .setFriction(1),
-  );
+  if (data.id === 'new-york-harbor') {
+    for (const cafe of CAFES)
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(8.5, 2, 0.5).setTranslation(cafe.x, 2, cafe.z - 1),
+      );
+    for (const [x, z, hx, hz] of [
+      [-57, -155, 207, 425],
+      [500, -155, 55, 130],
+      [300, -154, 155, 11],
+    ])
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(hx, 0.5, hz).setTranslation(x, -0.5, z).setFriction(1),
+      );
+    for (const z of [-165, -143])
+      world.createCollider(RAPIER.ColliderDesc.cuboid(155, 1, 0.2).setTranslation(300, 1, z));
+  } else
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid((max[0] - min[0]) / 2 + 50, 0.5, (max[1] - min[1]) / 2 + 50)
+        .setTranslation(cx, -0.5, cz)
+        .setFriction(1),
+    );
   const chunks = new Map<string, BufferGeometry[]>();
   for (const building of data.buildings) {
     const [x, z] = building.polygon[0];

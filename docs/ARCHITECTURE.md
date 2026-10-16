@@ -2,7 +2,9 @@
 
 Planning baseline: October 16, 2026. Reviewed starter commit: `8a06122`.
 Status: target architecture. Foundation and part of milestone one are now implemented;
-see [current build status](BUILD_STATUS.md). Future systems below remain planned.
+see [current build status](BUILD_STATUS.md). [PR integration](PR_INTEGRATION.md) adds
+the living harbor and Heat Clock; their reset/scoring/dispatch rules supersede the
+earlier draft rules below. Other future systems remain planned.
 
 ## 1. Product target
 

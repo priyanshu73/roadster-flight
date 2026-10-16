@@ -24,9 +24,16 @@
           <div class="eyebrow"><span></span> A DIFFERENT KIND OF STREET CAR</div>
           <h1 id="hero-title">LEAVE<br />THE <em>GROUND.</em></h1>
           <p class="hero-description">
-            Real streets. A little less gravity.<br />Take the thruster-equipped Roadster for a
+            Two districts. A little less gravity.<br />Take the thruster-equipped Roadster for a
             drive.
           </p>
+          <label class="district-chooser"
+            >NEW YORK DISTRICT
+            <select id="district-select">
+              <option value="harbor">Harbor · fictional living city</option>
+              <option value="midtown">Midtown · real OpenStreetMap streets</option>
+            </select>
+          </label>
           <button id="start" class="button button-primary" disabled>
             <span>Preparing Midtown</span><span aria-hidden="true">↗</span>
           </button>
@@ -45,7 +52,7 @@
           </div>
           <button class="city-option selected" data-city="new-york" aria-pressed="true">
             <span class="city-number">01</span
-            ><span class="city-label">New York<small>MIDTOWN MANHATTAN</small></span
+            ><span class="city-label">New York<small>HARBOR / LIVING CITY</small></span
             ><span class="city-arrow">↗</span>
           </button>
           <button class="city-option" disabled data-city="tokyo">
@@ -64,7 +71,7 @@
             ><span class="city-lock">—</span>
           </button>
           <div class="district-meta">
-            <span>40.7549° N &nbsp; 73.9840° W</span><span>REAL STREET DATA</span>
+            <span>40.7549° N &nbsp; 73.9840° W</span><span>PROCEDURAL HARBOR + REAL MIDTOWN</span>
           </div>
         </aside>
         <div class="menu-bottom">
@@ -75,7 +82,9 @@
       <section id="hud" class="hud" aria-label="Driving instruments" hidden>
         <div class="location-card">
           <span class="location-dot"></span>
-          <div>NEW YORK<small>MIDTOWN MANHATTAN / FREE DRIVE</small></div>
+          <div>
+            NEW YORK<small><span id="district-name">HARBOR DISTRICT / FICTIONAL</span></small>
+          </div>
         </div>
         <div class="session-info">
           <span id="drive-time">00:00</span><span id="drive-distance">0.00 KM</span>
@@ -108,7 +117,34 @@
         <div class="controls">
           <span><kbd>W A S D</kbd> DRIVE</span><span><kbd>SPACE</kbd> BOOST</span
           ><span><kbd>SHIFT</kbd> HOP</span><span><kbd>C</kbd> CAMERA</span
-          ><span><kbd>R</kbd> RESET</span><span><kbd>ESC</kbd> PAUSE</span>
+          ><span><kbd>H</kbd> HORN</span><span><kbd>E</kbd> TALK</span><span><kbd>M</kbd> MUTE</span
+          ><span><kbd>R</kbd> RESTART</span><span><kbd>ESC</kbd> PAUSE</span>
+        </div>
+        <div class="heat-panel">
+          <span class="heat-label">HEAT CLOCK</span><strong id="heat-time">0:00.0</strong>
+          <div id="heat-stars">FREE ROAM</div>
+          <div
+            class="heat-track"
+            role="progressbar"
+            aria-label="Busted meter"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <i id="busted-fill"></i>
+          </div>
+          <div class="heat-track cool"><i id="cool-fill"></i></div>
+          <small id="heat-meta">A crash starts the chase</small>
+        </div>
+        <button id="sound-toggle" class="sound-toggle" aria-pressed="false">SOUND ON · M</button>
+        <canvas
+          id="minimap"
+          width="170"
+          height="170"
+          aria-label="Nearby streets and police"
+        ></canvas>
+        <div id="dialogue" class="dialogue" role="status" hidden>
+          <small id="speaker"></small><span id="words"></span>
         </div>
         <div id="notice" class="notice" role="status" hidden></div>
         <div id="debug-info" class="debug-info" hidden></div>
@@ -126,7 +162,7 @@
           <h2 id="pause-title">DRIVE PAUSED.</h2>
           <p>Your car can wait.</p>
           <button id="resume" class="button button-primary">Resume drive <span>↗</span></button
-          ><button id="reset" class="button button-secondary">Reset to 6th Avenue</button
+          ><button id="reset" class="button button-secondary">Restart run</button
           ><label class="setting"
             >Graphics<select id="quality">
               <option value="medium">Medium</option>
@@ -136,6 +172,26 @@
           ><label class="setting"
             >Reduced camera motion<input id="reduced-motion" type="checkbox" /></label
           ><button id="return-menu" class="text-button">← Back to destinations</button>
+        </div>
+      </section>
+      <section
+        id="caught"
+        class="caught-screen"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="caught-title"
+        hidden
+      >
+        <div class="caught-panel">
+          <div class="eyebrow">BUSTED</div>
+          <h2 id="caught-title">CAUGHT.</h2>
+          <p>YOUR HEAT CLOCK</p>
+          <strong id="caught-time">0:00.0</strong>
+          <div id="new-best">NEW BEST</div>
+          <div id="caught-summary"></div>
+          <button id="restart" class="button button-primary">
+            Run it back · Enter <span>↗</span>
+          </button>
         </div>
       </section>
       <footer class="attribution">

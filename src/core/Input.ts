@@ -8,7 +8,10 @@ export type Action =
   | 'reset'
   | 'camera'
   | 'pause'
-  | 'debug';
+  | 'debug'
+  | 'talk'
+  | 'horn'
+  | 'mute';
 
 const bindings: Record<string, Action> = {
   KeyW: 'forward',
@@ -24,6 +27,9 @@ const bindings: Record<string, Action> = {
   ShiftRight: 'hop',
   KeyR: 'reset',
   KeyC: 'camera',
+  KeyE: 'talk',
+  KeyH: 'horn',
+  KeyM: 'mute',
   Escape: 'pause',
   Backquote: 'debug',
 };
@@ -37,6 +43,9 @@ export interface Actions {
   hop: boolean;
   reset: boolean;
   camera: boolean;
+  talk?: boolean;
+  horn?: boolean;
+  mute?: boolean;
 }
 
 export const idleActions = (): Actions => ({
@@ -53,12 +62,13 @@ export const idleActions = (): Actions => ({
 /** Physical keys are tracked separately so releasing W does not release held Up. */
 export class InputBuffer {
   private keys = new Set<string>();
-  private edges = new Set<Action>();
+  private edges = new Map<Action, number>();
 
   down(code: string, repeat = false): boolean {
     const action = bindings[code];
     if (!action) return false;
-    if (!repeat && !this.keys.has(code) && !this.held(action)) this.edges.add(action);
+    if (!repeat && !this.keys.has(code) && !this.held(action))
+      this.edges.set(action, (this.edges.get(action) ?? 0) + 1);
     this.keys.add(code);
     return true;
   }
@@ -70,9 +80,10 @@ export class InputBuffer {
     return [...this.keys].some((code) => bindings[code] === action);
   }
   consume(action: Action): boolean {
-    const pressed = this.edges.has(action);
-    this.edges.delete(action);
-    return pressed;
+    const count = this.edges.get(action) ?? 0;
+    if (count > 1) this.edges.set(action, count - 1);
+    else this.edges.delete(action);
+    return count > 0;
   }
   clear(): void {
     this.keys.clear();
@@ -88,6 +99,9 @@ export class InputBuffer {
       hop: this.consume('hop'),
       reset: this.consume('reset'),
       camera: this.consume('camera'),
+      talk: this.consume('talk'),
+      horn: this.consume('horn'),
+      mute: this.consume('mute'),
     };
   }
 }

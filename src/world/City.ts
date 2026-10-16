@@ -41,7 +41,7 @@ export function validateCity(value: unknown): City {
   const c = value as City;
   if (
     c.schemaVersion !== 1 ||
-    c.id !== 'new-york-midtown' ||
+    !['new-york-midtown', 'new-york-harbor'].includes(c.id) ||
     !Array.isArray(c.roads) ||
     !Array.isArray(c.buildings) ||
     !c.bounds ||
@@ -86,10 +86,16 @@ export function validateCity(value: unknown): City {
   return c;
 }
 
-export async function loadCity(signal: AbortSignal): Promise<City> {
-  const response = await fetch(`${import.meta.env.BASE_URL}cities/new-york-midtown/district.json`, {
-    signal,
-  });
+export async function loadCity(
+  signal: AbortSignal,
+  district: 'midtown' | 'harbor' = 'harbor',
+): Promise<City> {
+  const response = await fetch(
+    `${import.meta.env.BASE_URL}cities/new-york-${district}/district.json`,
+    {
+      signal,
+    },
+  );
   if (!response.ok) throw new Error(`City download failed (${response.status}). Try reloading.`);
   return validateCity(await response.json());
 }

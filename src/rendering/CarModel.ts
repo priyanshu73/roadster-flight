@@ -1,16 +1,12 @@
 import * as THREE from 'three';
 import { WHEELS, type Vehicle } from '../vehicle/Vehicle';
+import { buildRear } from './RearModel';
 
 /** Original procedural development model. Replace with the licensed reveal model. */
 export class CarModel {
   readonly group = new THREE.Group();
   readonly wheels: THREE.Group[] = [];
-  private jets: THREE.Mesh[] = [];
-  private brakeMaterial = new THREE.MeshStandardMaterial({
-    color: 0xb81716,
-    emissive: 0xff1d0a,
-    emissiveIntensity: 1.4,
-  });
+  private rear: THREE.Group;
 
   constructor(color = 0xb9c2c8) {
     const paint = new THREE.MeshPhysicalMaterial({
@@ -102,8 +98,7 @@ export class CarModel {
     mesh(canopy, glass, 0, 0, 0);
     mesh(new THREE.BoxGeometry(1.21, 0.045, 0.76), dark, 0, 0.75, -0.25);
     mesh(new THREE.BoxGeometry(1.68, 0.08, 0.13), dark, 0, -0.14, 2.17);
-    mesh(new THREE.BoxGeometry(1.69, 0.18, 0.18), dark, 0, -0.12, -2.12);
-    mesh(new THREE.BoxGeometry(1.58, 0.045, 0.035), this.brakeMaterial, 0, 0.18, -2.18);
+
     for (const side of [-1, 1]) {
       const lamp = mesh(new THREE.BoxGeometry(0.5, 0.035, 0.075), light, side * 0.56, 0.1, 2.12);
       lamp.rotation.z = side * -0.08;
@@ -119,31 +114,12 @@ export class CarModel {
         );
         wing.scale.set(0.52, 0.55, 1.15);
       }
-      const jetMaterial = new THREE.MeshBasicMaterial({
-        color: 0xdcf4ff,
-        transparent: true,
-        opacity: 0.45,
-        depthWrite: false,
-      });
-      const jet = mesh(
-        new THREE.ConeGeometry(0.09, 1.8, 8, 1, true),
-        jetMaterial,
-        side * 0.67,
-        -0.04,
-        -2.9,
-      );
-      jet.rotation.x = Math.PI / 2;
-      jet.visible = false;
-      this.jets.push(jet);
-      const nozzle = mesh(
-        new THREE.CylinderGeometry(0.095, 0.095, 0.1, 12),
-        rim,
-        side * 0.67,
-        -0.04,
-        -2.22,
-      );
-      nozzle.rotation.x = Math.PI / 2;
     }
+    this.rear = buildRear();
+    this.rear.scale.setScalar(0.45);
+    this.rear.rotation.y = Math.PI;
+    this.rear.position.set(0, -0.25, -1.93);
+    this.group.add(this.rear);
     WHEELS.forEach((point) => {
       const pivot = new THREE.Group();
       pivot.position.set(point.x, -0.27, point.z);
@@ -162,7 +138,7 @@ export class CarModel {
     });
   }
 
-  update(vehicle: Vehicle, alpha: number, braking: boolean): void {
+  update(vehicle: Vehicle, alpha: number, braking: boolean, time = 0): void {
     this.group.position.lerpVectors(vehicle.previousPosition, vehicle.currentPosition, alpha);
     this.group.quaternion.slerpQuaternions(
       vehicle.previousRotation,
@@ -178,9 +154,10 @@ export class CarModel {
         'YXZ',
       );
     });
-    this.jets.forEach((jet) => {
-      jet.visible = vehicle.boosting;
-    });
-    this.brakeMaterial.emissiveIntensity = braking ? 4 : 1.2;
+    this.rear.userData.update(
+      time,
+      vehicle.boosting || vehicle.hopping || (!vehicle.grounded && vehicle.body.linvel().y > 1),
+      braking,
+    );
   }
 }

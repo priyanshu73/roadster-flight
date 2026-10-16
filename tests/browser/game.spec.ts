@@ -31,7 +31,7 @@ test('loads real city data at the Pages prefix, drives, hops and pauses safely',
     if (r.status() >= 400 && r.url().startsWith('http://127.0.0.1'))
       failed.push(`${r.status()} ${r.url()}`);
   });
-  await page.goto('./?debug=1');
+  await page.goto('./?debug=1&district=midtown');
   await expect(page.getByRole('button', { name: 'Drive New York' })).toBeEnabled({
     timeout: 30000,
   });
@@ -64,7 +64,7 @@ test('loads real city data at the Pages prefix, drives, hops and pauses safely',
   await expect(page.getByRole('dialog')).toBeHidden();
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('button', { name: 'Reset to 6th Avenue' }).click();
+  await page.getByRole('button', { name: 'Restart run' }).click();
   await expect.poll(async () => (await snapshot(page)).speed).toBeLessThan(1);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Back to destinations' }).click();
@@ -80,7 +80,7 @@ test('loads real city data at the Pages prefix, drives, hops and pauses safely',
 
 for (const side of ['left', 'right'] as const) {
   test(`real keyboard ${side} changes chassis heading on Midtown streets`, async ({ page }) => {
-    await page.goto('./?debug=1');
+    await page.goto('./?debug=1&district=midtown');
     await expect(page.getByRole('button', { name: 'Drive New York' })).toBeEnabled({
       timeout: 30000,
     });
@@ -113,7 +113,7 @@ test('city download failure offers retry and never enables an empty world', asyn
   await page.route('**/district.json', (route) =>
     route.fulfill({ status: 503, body: 'unavailable' }),
   );
-  await page.goto('./?debug=1');
+  await page.goto('./?debug=1&district=midtown');
   await expect(page.getByRole('button', { name: 'Retry loading' })).toBeVisible();
   await expect(page.locator('#start')).toBeDisabled();
   await page.unroute('**/district.json');

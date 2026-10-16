@@ -32,3 +32,12 @@ This is an independent fan project. Tesla and Roadster names identify the
 inspiration; the project does not claim official affiliation or endorsement.
 The owner's choice of licence for original application code is still pending;
 the third-party and map-data licences above remain applicable independently.
+
+## Integrated original feature assets
+
+Rear styling is adapted from project PR #1; harbor/actors/dialogue/audio and Heat
+Clock are integrated from the feature specifications/code in PRs #2–#3. These are
+original code-generated assets within this project. No external character model,
+recorded voice, commercial soundtrack or new mapping subscription is included.
+The fictional harbor has its own source record and does not use OSM attribution
+for its geography. Real Midtown retains the ODbL records above.

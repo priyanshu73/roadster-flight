@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "city:import": "node tools/city/import.mjs",
-    "test:handling": "tsx tools/testing/handling.ts"
+    "test:handling": "tsx tools/testing/handling.ts",
+    "city:harbor": "tsx tools/city/harbor.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.19.3",

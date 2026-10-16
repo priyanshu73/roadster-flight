@@ -55,11 +55,15 @@ export class Vehicle {
         .setTranslation(0, -0.07, 0)
         .setMass(1300)
         .setFriction(0.3)
-        .setRestitution(0.02),
+        .setRestitution(0.02)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
       this.body,
     );
     world.createCollider(
-      RAPIER.ColliderDesc.cuboid(0.65, 0.19, 0.78).setTranslation(0, 0.25, -0.3).setMass(80),
+      RAPIER.ColliderDesc.cuboid(0.65, 0.19, 0.78)
+        .setTranslation(0, 0.25, -0.3)
+        .setMass(80)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
       this.body,
     );
     this.controller = world.createVehicleController(this.body);
@@ -166,7 +170,7 @@ export class Vehicle {
     // Exclude this body's own colliders from suspension queries.
     this.controller.updateVehicle(
       dt,
-      undefined,
+      RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
       undefined,
       (c) => c.parent()?.handle !== this.body.handle,
     );

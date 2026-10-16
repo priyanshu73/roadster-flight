@@ -1,7 +1,8 @@
 # Roadster Flight — implementation roadmap
 
 Status: implementation checklist, October 16, 2026. Unchecked items are future work.
-See [current build status](BUILD_STATUS.md) for evidence and known limitations.
+See [current build status](BUILD_STATUS.md) and [PR integration](PR_INTEGRATION.md)
+for the living harbor/Heat Clock implementation, evidence and remaining limits.
 Read [architecture](ARCHITECTURE.md) for system decisions and
 [assets](ASSETS.md) for the separate visual/audio/data requests.
 
@@ -133,23 +134,23 @@ Goal: make collisions lead to a fair, readable chase on the real road graph.
 ### 3A. Traffic and incidents
 
 - [ ] Generate lane guides, legal junction connectors and spawn segments.
-- [ ] Implement a small dynamic traffic pool with speed following and obstacle checks.
+- [x] Implement a small dynamic traffic pool with speed following and obstacle checks.
 - [ ] Add left/right driving-side support as data, even though the first city drives right.
 - [ ] Add intersection stop/yield rules and stuck detection.
-- [ ] Add contact incident classification, responsibility, severity and pair cooldown.
-- [ ] Add a bounded set of breakable props and cosmetic crash feedback.
+- [x] Add contact incident classification, responsibility, severity and pair cooldown.
+- [x] Add a bounded set of breakable props and cosmetic crash feedback.
 
 ### 3B. Police
 
 - [ ] Add heat thresholds, wanted display, last-seen position and search/decay timers.
-- [ ] Add one patrol first; drive graph routes before introducing multiple intercept roles.
+- [x] Add one patrol first; drive graph routes before introducing multiple intercept roles.
 - [ ] Add A* route selection, player prediction, legal pursuit steering and replanning budget.
 - [ ] Scale police to the architecture's bounded wanted-level budgets.
 - [ ] Add occlusion-aware sightings and search around last known position.
 - [ ] Route ground police toward roads near an airborne player's likely landing area.
 - [ ] Add one helicopter at level four with guided movement, spotlight and occlusion.
-- [ ] Add stationary capture countdown, escape feedback and restart flow.
-- [ ] Add police/siren/helicopter assets and audio from the separate checklist.
+- [x] Add stationary capture countdown, escape feedback and restart flow.
+- [x] Add police/siren/helicopter assets and audio from the separate checklist.
 
 Exit gate:
 

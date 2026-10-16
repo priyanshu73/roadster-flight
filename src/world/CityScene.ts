@@ -63,11 +63,20 @@ export class CityScene {
     const { min, max } = data.bounds;
     const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x90958e, roughness: 0.97 });
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(max[0] - min[0] + 100, max[1] - min[1] + 100),
+      data.id === 'new-york-harbor'
+        ? new THREE.PlaneGeometry(414, 850)
+        : new THREE.PlaneGeometry(max[0] - min[0] + 100, max[1] - min[1] + 100),
       groundMaterial,
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.set((min[0] + max[0]) / 2, -0.015, (min[1] + max[1]) / 2);
+    if (data.id === 'new-york-harbor') {
+      ground.position.set(-57, -0.015, -155);
+      const shore = ground.clone();
+      shore.geometry = new THREE.PlaneGeometry(110, 260);
+      shore.position.set(500, -0.015, -155);
+      this.group.add(shore);
+    }
     ground.receiveShadow = true;
     this.group.add(ground);
     createCityColliders(data, world);

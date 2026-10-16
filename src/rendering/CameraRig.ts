@@ -3,17 +3,28 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import type { Vehicle } from '../vehicle/Vehicle';
 
 export class CameraRig {
-  private close = false;
+  private mode = 0;
   private initialized = false;
   private direction = new THREE.Vector3();
   private target = new THREE.Vector3();
   private desired = new THREE.Vector3();
   private rayDirection = new THREE.Vector3();
+  private overviewCentre: THREE.Vector3 | null = null;
+  private overviewDistance = 300;
   constructor(readonly camera: THREE.PerspectiveCamera) {}
-  cycle(): void {
-    this.close = !this.close;
+  setOverviewBounds(min: [number, number], max: [number, number]): void {
+    this.overviewCentre = new THREE.Vector3((min[0] + max[0]) / 2, 0, (min[1] + max[1]) / 2);
+    this.overviewDistance = Math.max(max[0] - min[0], max[1] - min[1]) * 0.8;
+    this.camera.far = Math.max(1800, this.overviewDistance * 3);
   }
-  reset(): void {
+  cycle(): void {
+    this.mode = (this.mode + 1) % 3;
+  }
+  get modeName(): string {
+    return ['chase', 'close', 'overview'][this.mode];
+  }
+  reset(toDefault = false): void {
+    if (toDefault) this.mode = 0;
     this.initialized = false;
   }
 
@@ -32,14 +43,15 @@ export class CameraRig {
       this.desired.set(8, 4.1, 9).applyQuaternion(rotation).add(position);
       this.target.copy(position).add(new THREE.Vector3(0, 0.25, 0));
     } else {
-      const distance = this.close ? 6.2 : 10.5;
+      const close = this.mode === 1;
+      const distance = close ? 6.2 : 10.5;
       this.desired
         .copy(position)
         .addScaledVector(this.direction, -distance)
-        .add(new THREE.Vector3(0, this.close ? 2.5 : 4.2, 0));
+        .add(new THREE.Vector3(0, close ? 2.5 : 4.2, 0));
       this.target
         .copy(position)
-        .addScaledVector(this.direction, this.close ? 4 : 7)
+        .addScaledVector(this.direction, close ? 4 : 7)
         .add(new THREE.Vector3(0, 1, 0));
       const origin = position.clone().add(new THREE.Vector3(0, 0.7, 0));
       this.rayDirection.subVectors(this.desired, origin);
@@ -49,7 +61,7 @@ export class CameraRig {
         new RAPIER.Ray(origin, this.rayDirection),
         length,
         true,
-        undefined,
+        RAPIER.QueryFilterFlags.EXCLUDE_SENSORS,
         undefined,
         undefined,
         vehicle.body,
@@ -58,6 +70,12 @@ export class CameraRig {
         this.desired
           .copy(origin)
           .addScaledVector(this.rayDirection, Math.max(0.5, hit.timeOfImpact - 0.5));
+      if (this.mode === 2) {
+        const centre = this.overviewCentre ?? position,
+          d = this.overviewDistance;
+        this.desired.copy(centre).add(new THREE.Vector3(d * 0.45, d * 0.65, d * 0.65));
+        this.target.copy(centre);
+      }
     }
     if (!this.initialized) {
       this.camera.position.copy(this.desired);

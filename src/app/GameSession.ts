@@ -6,6 +6,9 @@ import { CityScene } from '../world/CityScene';
 import { Vehicle } from '../vehicle/Vehicle';
 import { CarModel } from '../rendering/CarModel';
 import { CameraRig } from '../rendering/CameraRig';
+import { CityLife } from '../gameplay/CityLife';
+import { LivingScene } from '../rendering/LivingScene';
+import { CityAudio } from '../audio/CityAudio';
 
 export class GameSession {
   readonly scene = new THREE.Scene();
@@ -14,6 +17,14 @@ export class GameSession {
   readonly vehicle: Vehicle;
   readonly city: CityScene;
   readonly car = new CarModel();
+  readonly life: CityLife;
+  readonly living: LivingScene;
+  readonly audio = new CityAudio();
+  dialogue = {
+    speaker: 'HARBOR RADIO',
+    text: 'Welcome to the neighborhood. E to talk, H to honk, C for the skyline.',
+    until: 6,
+  };
   readonly cameraRig = new CameraRig(this.camera);
   private sun = new THREE.DirectionalLight(0xffedcf, 3.2);
   private debugMesh: THREE.LineSegments;
@@ -29,6 +40,7 @@ export class GameSession {
   ) {
     this.world.timestep = 1 / 60;
     this.world.integrationParameters.maxCcdSubsteps = 3;
+    this.cameraRig.setOverviewBounds(data.bounds.min, data.bounds.max);
     this.scene.background = new THREE.Color(0xb6cbd3);
     this.scene.fog = new THREE.FogExp2(0xb6cbd3, 0.00155);
     this.scene.environment = environment;
@@ -79,31 +91,71 @@ export class GameSession {
     }
     this.vehicle.previousPosition.copy(this.vehicle.currentPosition);
     this.vehicle.previousRotation.copy(this.vehicle.currentRotation);
+    let storage: Storage | undefined;
+    try {
+      storage = localStorage;
+    } catch {}
+    this.life = new CityLife(data, this.world, this.vehicle, storage);
+    this.living = new LivingScene(this.life);
+    this.scene.add(this.living.group);
   }
 
   tick(dt: number, input: Actions): void {
+    if (input.reset) {
+      this.restart();
+      return;
+    }
+    if (this.life.heat.over) return;
     this.lastInput = input;
     if (input.camera) this.cameraRig.cycle();
     this.vehicle.beforeStep(dt, input);
-    if (input.reset) this.cameraRig.reset();
-    this.world.step();
+    this.life.beforeStep(dt);
+    this.life.step();
     this.vehicle.afterStep();
+    this.life.afterStep(dt);
+    if (input.talk) this.life.talk();
+    if (input.horn) this.audio.horn();
+    if (input.mute) this.audio.mute();
+    for (const event of this.life.events) {
+      this.dialogue = { speaker: event.speaker, text: event.text, until: this.elapsed + 6 };
+      if (event.type === 'incident') this.audio.tone(140, 0.15, 0.15);
+      else this.audio.speak(event.text);
+    }
     this.elapsed += dt;
     this.distance += this.vehicle.speed * dt;
     const p = this.vehicle.currentPosition,
       { min, max } = this.data.bounds;
     const margin = Math.min(p.x - min[0], max[0] - p.x, p.z - min[1], max[1] - p.z);
     this.notice =
-      this.vehicle.message || (margin < 45 ? 'District edge · turn back or press R' : '');
+      this.life.heat.notice ||
+      this.vehicle.message ||
+      (margin < 45 ? 'District edge · turn back or press R' : '');
     if (margin < 2 || p.y < -10 || p.y > 150) {
       this.vehicle.reset(true);
       this.cameraRig.reset();
-      this.notice = 'Returned to 6th Avenue';
+      this.notice = `Returned to ${this.data.spawn.street}`;
     }
   }
 
   render(alpha: number, dt: number, showcase: boolean, reducedMotion: boolean): void {
-    this.car.update(this.vehicle, alpha, this.lastInput?.backward ?? false);
+    this.car.update(this.vehicle, alpha, this.lastInput?.backward ?? false, this.elapsed);
+    const wasPerched = this.living.courierState.perched;
+    this.living.update(this.elapsed, this.vehicle);
+    if (this.living.courierState.perched && !wasPerched && !showcase) {
+      this.dialogue = {
+        speaker: 'WEB COURIER',
+        text: 'Mind if I ride for a block? My arms are killing me.',
+        until: this.elapsed + 5,
+      };
+      this.audio.speak(this.dialogue.text);
+    }
+    this.audio.update(
+      this.vehicle.speed,
+      this.vehicle.boosting,
+      this.life.heat.chase && !this.life.heat.over ? this.life.heat.level : 0,
+      this.life.helicopter.active,
+      this.elapsed,
+    );
     this.cameraRig.update(
       this.car.group.position,
       this.car.group.quaternion,
@@ -133,7 +185,29 @@ export class GameSession {
       colliders: this.world.colliders.len(),
       roads: this.data.roads.length,
       buildings: this.data.buildings.length,
+      district: this.data.id,
+      cameraMode: this.cameraRig.modeName,
+      ...this.life.snapshot(),
+      perched: this.living.courierState.perched,
+      audio: this.audio.snapshot(),
+      dialogue: this.dialogue,
     };
+  }
+
+  restart(): void {
+    this.vehicle.reset(true);
+    this.vehicle.pressure.reset();
+    this.life.reset();
+    this.elapsed = this.distance = 0;
+    this.lastInput = null;
+    this.cameraRig.reset(true);
+    this.dialogue = {
+      speaker: 'HARBOR RADIO',
+      text: 'Free roam. A crash starts the Heat Clock. E to talk, H to honk.',
+      until: 6,
+    };
+    this.audio.pause(true);
+    this.audio.start();
   }
 
   dispose(): void {
@@ -141,7 +215,12 @@ export class GameSession {
       materials = new Set<THREE.Material>(),
       textures = new Set<THREE.Texture>();
     this.scene.traverse((object) => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+      if (object instanceof THREE.InstancedMesh) object.dispose();
+      if (
+        object instanceof THREE.Mesh ||
+        object instanceof THREE.Line ||
+        object instanceof THREE.Sprite
+      ) {
         geometries.add(object.geometry);
         for (const material of Array.isArray(object.material)
           ? object.material
@@ -155,6 +234,8 @@ export class GameSession {
     geometries.forEach((g) => g.dispose());
     materials.forEach((m) => m.dispose());
     textures.forEach((t) => t.dispose());
+    this.audio.dispose();
+    this.life.dispose();
     this.sun.shadow.dispose();
     this.world.free();
     this.scene.clear();

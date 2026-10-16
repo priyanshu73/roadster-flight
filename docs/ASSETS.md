@@ -177,3 +177,13 @@ their implementation gates approach.
 
 Integrated development assets are original code-generated meshes/materials.
 They unblock mechanics and do not close the final hero-car/fidelity checklist.
+
+## Integrated PR assets
+
+PRs #1–#3 now supply original procedural rear styling, civilian/taxi/patrol/interceptor/
+SUV meshes, helicopter, 96 pedestrian avatars, an original masked courier, cafes,
+bridge, harbor scenery, props/shards and synthesized sound. These are integrated
+in the running game; the earlier external-asset checklist remains an optional
+production-quality replacement list. A final reveal-accurate hero-car model and
+higher-fidelity architecture are still the most valuable outside asset help.
+See [PR feature coverage](PR_INTEGRATION.md).
