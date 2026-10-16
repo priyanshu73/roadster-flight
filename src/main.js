@@ -1,44 +1,775 @@
 // Original procedural NYC-inspired world and dialogue. No downloaded art or recordings.
 // Audio: Web Audio synthesis + local browser SpeechSynthesis voices, generated chatter + captions fallback.
-import * as T from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import {buildRear} from './rear.js';
-document.getElementById('menu').remove();document.getElementById('hud').remove();
-const style=document.createElement('style');style.textContent=`body{font-family:system-ui;color:#fff}canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#brand{position:absolute;top:25px;left:28px}.gold{color:#ffce87;font-size:10px;letter-spacing:3px}h1{font-weight:400;font-size:32px;margin:5px 0}.sub{font-size:12px;color:#d3e0e9}#stats{position:absolute;top:28px;right:28px;text-align:right;font-size:32px}#stats small{font-size:12px}#heat{font-size:12px;color:#ffd290}#controls{position:absolute;bottom:24px;left:28px;font-size:11px;line-height:2;padding:12px 18px;background:#102238d9;border-left:2px solid #ffd290}#dialogue{position:absolute;bottom:120px;left:28px;background:#102238e8;padding:16px 20px;max-width:380px;border-left:3px solid #ffd290;display:none}#dialogue small{display:block;color:#ffd290;font-size:10px;letter-spacing:2px;margin-bottom:6px}#map{position:absolute;bottom:24px;right:28px;border-radius:50%;border:1px solid #a0bec0}#entry{position:fixed;inset:0;background:linear-gradient(90deg,#081b31ee,transparent);padding:14vh 8vw;box-sizing:border-box}#entry h2{font-size:64px;font-weight:400;line-height:1.05;margin:18px 0}#entry p{max-width:350px;font-size:14px;color:#dae5ec;line-height:1.8}button{cursor:pointer;border:0;padding:14px 24px;border-radius:3px;background:#ffd290;color:#152538;font:inherit}#sound{pointer-events:auto;position:absolute;top:110px;right:28px;font-size:10px;padding:7px 10px}#notice{position:absolute;top:142px;left:28px;font-size:12px;color:#ffd290}`;document.head.append(style);
-const ui=document.createElement('div');ui.id='ui';ui.innerHTML=`<div id="brand"><div class="gold">ROADSTER FLIGHT / CITY 01</div><h1>NEW YORK</h1><div class="sub">Harbor district · Golden hour · Fictional city slice</div></div><div id="stats"><span id="speed">0</span> <small>MPH</small><div id="heat">FREE ROAM</div></div><button id="sound">SOUND ON · M</button><div id="notice"></div><div id="dialogue"><small id="speaker"></small><span id="words"></span></div><div id="controls">W A S D / arrows · drive &nbsp; SPACE · boost &nbsp; SHIFT · hop<br>E · talk nearby &nbsp; H · horn &nbsp; C · city view &nbsp; M · mute &nbsp; R · reset</div><canvas id="map" width="170" height="170"></canvas>`;document.body.append(ui);
-const entry=document.createElement('div');entry.id='entry';entry.innerHTML=`<div class="gold">A LITTLE CHAOS. A LOT OF CITY.</div><h2>The city<br>has company.</h2><p>Cabs, corner pizza, bridge traffic and conversations you weren't meant to hear. Look up: a web courier might catch a ride.</p><button id="start">ENTER NEW YORK →</button><p style="font-size:10px">Keyboard + desktop · Stylized prototype · Audio starts on entry</p>`;document.body.append(entry);
-const $=id=>document.getElementById(id),scene=new T.Scene();scene.background=new T.Color('#a8c4d4');scene.fog=new T.Fog('#b6c6cf',180,950);
-const renderer=new T.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;document.body.prepend(renderer.domElement);const camera=new T.PerspectiveCamera(60,innerWidth/innerHeight,.1,1800);scene.add(new T.HemisphereLight('#d7edff','#6a5141',2));const sun=new T.DirectionalLight('#ffd2a0',3);sun.position.set(-100,180,80);scene.add(sun);
-const cube=new T.BoxGeometry(1,1,1),sphere=new T.SphereGeometry(1,10,7),mats=new Map();function mat(c){if(!mats.has(c))mats.set(c,new T.MeshStandardMaterial({color:c,roughness:.8}));return mats.get(c)}function box(p,x,y,z,w,h,d,c){const m=new T.Mesh(cube,mat(c));m.position.set(x,y,z);m.scale.set(w,h,d);p.add(m);return m}function ball(p,x,y,z,r,c){const m=new T.Mesh(sphere,mat(c));m.position.set(x,y,z);m.scale.setScalar(r);p.add(m);return m}function cable(a,b,c='#6c797e',r=.07){const d=new T.Vector3().subVectors(b,a),m=new T.Mesh(new T.CylinderGeometry(r,r,d.length(),5),mat(c));m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());scene.add(m)}let seed=734;function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}const solid=[];
-function sign(text,w=13){const c=document.createElement('canvas');c.width=512;c.height=80;const g=c.getContext('2d');g.fillStyle='#254e4a';g.fillRect(0,0,512,80);g.fillStyle='#ffe5b5';g.font='bold 36px sans-serif';g.textAlign='center';g.fillText(text,256,53,500);const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;return new T.Mesh(new T.PlaneGeometry(w,2),new T.MeshBasicMaterial({map:tex,side:T.DoubleSide}))}
-box(scene,-57,-1.3,-155,414,2,850,'#7b8076');const water=new T.Mesh(new T.PlaneGeometry(1800,1800,35,35),new T.MeshStandardMaterial({color:'#367b94',metalness:.5,roughness:.27}));water.rotation.x=-Math.PI/2;water.position.set(110,-2.1,-160);scene.add(water);box(scene,137,.1,-155,18,.25,850,'#b8b09b');box(scene,147,-.5,-155,4,3,850,'#aeac98');
-const xs=[-210,-126,-42,42],zs=[-490,-406,-322,-238,-154,-70,14,98,182];for(const x of xs){box(scene,x,.02,-155,23,.1,850,'#35434e');for(let z=-550;z<260;z+=12)box(scene,x,.1,z,.2,.03,5,'#dfc781')}for(const z of zs){box(scene,-57,.08,z,414,.1,22,'#35434e');for(let x=-250;x<145;x+=12)box(scene,x,.16,z,5,.03,.2,'#dfc781')}
-const wc=document.createElement('canvas');wc.width=128;wc.height=256;const wg=wc.getContext('2d');wg.fillStyle='#bbb5a7';wg.fillRect(0,0,128,256);for(let y=6;y<256;y+=22)for(let x=8;x<128;x+=23){wg.fillStyle=rnd()>.25?'#354c5c':'#edce8c';wg.fillRect(x,y,11,14)}const wt=new T.CanvasTexture(wc);wt.colorSpace=T.SRGBColorSpace;
-for(const x of xs)for(const z of zs)for(let i=-4;i<=4;i++)box(scene,x+i*2,.19,z+14,1.2,.03,4.5,'#d9d9cb');
-for(let ix=0;ix<4;ix++)for(let iz=0;iz<8;iz++){const x=-168+ix*84,z=-448+iz*84;box(scene,x,.22,z,60,.4,60,'#aba99c');for(const side of [-1,1]){const bx=x+side*15,bz=z+side*9,w=22+rnd()*6,d=30+rnd()*12,h=18+rnd()*65+(iz<3?rnd()*45:0),b=new T.Mesh(cube,new T.MeshStandardMaterial({map:wt,color:['#c1a38b','#9eaaa9','#b6aaa0','#c9b69a'][ix],roughness:.9}));b.position.set(bx,h/2+.5,bz);b.scale.set(w,h,d);scene.add(b);solid.push({x:bx,z:bz,w:w/2+1.5,d:d/2+1.5,h});box(scene,bx,h+1,bz,w+1,1,d+1,'#777d7c');box(scene,bx,h+2,bz,5,2,5,'#777d7c')}}
-box(scene,-145,80,-520,36,160,34,'#9fa7a6');box(scene,-145,168,-520,22,20,22,'#adb6b2');box(scene,-145,190,-520,9,24,9,'#bdc5bf');cable(new T.Vector3(-145,202,-520),new T.Vector3(-145,228,-520),'#a6b3b6',.7);
-for(let i=0;i<22;i++){const c=ball(scene,-650+rnd()*1300,150+rnd()*100,-700+rnd()*900,1,'#d9dcd7');c.scale.set(30+rnd()*45,4+rnd()*4,16+rnd()*15)}const disc=new T.Mesh(sphere,new T.MeshBasicMaterial({color:'#ffe7b0'}));disc.position.set(400,180,-700);disc.scale.setScalar(27);scene.add(disc);
+import * as T from "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js";
+import { buildRear } from "./rear.js";
+document.getElementById("menu").remove();
+document.getElementById("hud").remove();
+const style = document.createElement("style");
+style.textContent = `body{font-family:system-ui;color:#fff}canvas{display:block}#ui{position:fixed;inset:0;pointer-events:none}#brand{position:absolute;top:25px;left:28px}.gold{color:#ffce87;font-size:10px;letter-spacing:3px}h1{font-weight:400;font-size:32px;margin:5px 0}.sub{font-size:12px;color:#d3e0e9}#stats{position:absolute;top:28px;right:28px;text-align:right;font-size:32px}#stats small{font-size:12px}#heat{font-size:12px;color:#ffd290}#controls{position:absolute;bottom:24px;left:28px;font-size:11px;line-height:2;padding:12px 18px;background:#102238d9;border-left:2px solid #ffd290}#dialogue{position:absolute;bottom:120px;left:28px;background:#102238e8;padding:16px 20px;max-width:380px;border-left:3px solid #ffd290;display:none}#dialogue small{display:block;color:#ffd290;font-size:10px;letter-spacing:2px;margin-bottom:6px}#map{position:absolute;bottom:24px;right:28px;border-radius:50%;border:1px solid #a0bec0}#entry{position:fixed;inset:0;background:linear-gradient(90deg,#081b31ee,transparent);padding:14vh 8vw;box-sizing:border-box}#entry h2{font-size:64px;font-weight:400;line-height:1.05;margin:18px 0}#entry p{max-width:350px;font-size:14px;color:#dae5ec;line-height:1.8}button{cursor:pointer;border:0;padding:14px 24px;border-radius:3px;background:#ffd290;color:#152538;font:inherit}#sound{pointer-events:auto;position:absolute;top:110px;right:28px;font-size:10px;padding:7px 10px}#notice{position:absolute;top:142px;left:28px;font-size:12px;color:#ffd290}`;
+document.head.append(style);
+const ui = document.createElement("div");
+ui.id = "ui";
+ui.innerHTML = `<div id="brand"><div class="gold">ROADSTER FLIGHT / CITY 01</div><h1>NEW YORK</h1><div class="sub">Harbor district · Golden hour · Fictional city slice</div></div><div id="stats"><span id="speed">0</span> <small>MPH</small><div id="heat">FREE ROAM</div></div><button id="sound">SOUND ON · M</button><div id="notice"></div><div id="dialogue"><small id="speaker"></small><span id="words"></span></div><div id="controls">W A S D / arrows · drive &nbsp; SPACE · boost &nbsp; SHIFT · hop<br>E · talk nearby &nbsp; H · horn &nbsp; C · city view &nbsp; M · mute &nbsp; R · reset</div><canvas id="map" width="170" height="170"></canvas>`;
+document.body.append(ui);
+const entry = document.createElement("div");
+entry.id = "entry";
+entry.innerHTML = `<div class="gold">A LITTLE CHAOS. A LOT OF CITY.</div><h2>The city<br>has company.</h2><p>Cabs, corner pizza, bridge traffic and conversations you weren't meant to hear. Look up: a web courier might catch a ride.</p><button id="start">ENTER NEW YORK →</button><p style="font-size:10px">Keyboard + desktop · Stylized prototype · Audio starts on entry</p>`;
+document.body.append(entry);
+const $ = (id) => document.getElementById(id),
+  scene = new T.Scene();
+scene.background = new T.Color("#a8c4d4");
+scene.fog = new T.Fog("#b6c6cf", 180, 950);
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = T.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.body.prepend(renderer.domElement);
+const camera = new T.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1800);
+scene.add(new T.HemisphereLight("#d7edff", "#6a5141", 2));
+const sun = new T.DirectionalLight("#ffd2a0", 3);
+sun.position.set(-100, 180, 80);
+scene.add(sun);
+const cube = new T.BoxGeometry(1, 1, 1),
+  sphere = new T.SphereGeometry(1, 10, 7),
+  mats = new Map();
+function mat(c) {
+  if (!mats.has(c))
+    mats.set(c, new T.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+  return mats.get(c);
+}
+function box(p, x, y, z, w, h, d, c) {
+  const m = new T.Mesh(cube, mat(c));
+  m.position.set(x, y, z);
+  m.scale.set(w, h, d);
+  p.add(m);
+  return m;
+}
+function ball(p, x, y, z, r, c) {
+  const m = new T.Mesh(sphere, mat(c));
+  m.position.set(x, y, z);
+  m.scale.setScalar(r);
+  p.add(m);
+  return m;
+}
+function cable(a, b, c = "#6c797e", r = 0.07) {
+  const d = new T.Vector3().subVectors(b, a),
+    m = new T.Mesh(new T.CylinderGeometry(r, r, d.length(), 5), mat(c));
+  m.position.copy(a).add(b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize());
+  scene.add(m);
+}
+let seed = 734;
+function rnd() {
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  return seed / 4294967296;
+}
+const solid = [];
+function sign(text, w = 13) {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 80;
+  const g = c.getContext("2d");
+  g.fillStyle = "#254e4a";
+  g.fillRect(0, 0, 512, 80);
+  g.fillStyle = "#ffe5b5";
+  g.font = "bold 36px sans-serif";
+  g.textAlign = "center";
+  g.fillText(text, 256, 53, 500);
+  const tex = new T.CanvasTexture(c);
+  tex.colorSpace = T.SRGBColorSpace;
+  return new T.Mesh(
+    new T.PlaneGeometry(w, 2),
+    new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide }),
+  );
+}
+box(scene, -57, -1.3, -155, 414, 2, 850, "#7b8076");
+const water = new T.Mesh(
+  new T.PlaneGeometry(1800, 1800, 35, 35),
+  new T.MeshStandardMaterial({
+    color: "#367b94",
+    metalness: 0.5,
+    roughness: 0.27,
+  }),
+);
+water.rotation.x = -Math.PI / 2;
+water.position.set(110, -2.1, -160);
+scene.add(water);
+box(scene, 137, 0.1, -155, 18, 0.25, 850, "#b8b09b");
+box(scene, 147, -0.5, -155, 4, 3, 850, "#aeac98");
+const xs = [-210, -126, -42, 42],
+  zs = [-490, -406, -322, -238, -154, -70, 14, 98, 182];
+for (const x of xs) {
+  box(scene, x, 0.02, -155, 23, 0.1, 850, "#35434e");
+  for (let z = -550; z < 260; z += 12)
+    box(scene, x, 0.1, z, 0.2, 0.03, 5, "#dfc781");
+}
+for (const z of zs) {
+  box(scene, -57, 0.08, z, 414, 0.1, 22, "#35434e");
+  for (let x = -250; x < 145; x += 12)
+    box(scene, x, 0.16, z, 5, 0.03, 0.2, "#dfc781");
+}
+const wc = document.createElement("canvas");
+wc.width = 128;
+wc.height = 256;
+const wg = wc.getContext("2d");
+wg.fillStyle = "#bbb5a7";
+wg.fillRect(0, 0, 128, 256);
+for (let y = 6; y < 256; y += 22)
+  for (let x = 8; x < 128; x += 23) {
+    wg.fillStyle = rnd() > 0.25 ? "#354c5c" : "#edce8c";
+    wg.fillRect(x, y, 11, 14);
+  }
+const wt = new T.CanvasTexture(wc);
+wt.colorSpace = T.SRGBColorSpace;
+for (const x of xs)
+  for (const z of zs)
+    for (let i = -4; i <= 4; i++)
+      box(scene, x + i * 2, 0.19, z + 14, 1.2, 0.03, 4.5, "#d9d9cb");
+for (let ix = 0; ix < 4; ix++)
+  for (let iz = 0; iz < 8; iz++) {
+    const x = -168 + ix * 84,
+      z = -448 + iz * 84;
+    box(scene, x, 0.22, z, 60, 0.4, 60, "#aba99c");
+    for (const side of [-1, 1]) {
+      const bx = x + side * 15,
+        bz = z + side * 9,
+        w = 22 + rnd() * 6,
+        d = 30 + rnd() * 12,
+        h = 18 + rnd() * 65 + (iz < 3 ? rnd() * 45 : 0),
+        b = new T.Mesh(
+          cube,
+          new T.MeshStandardMaterial({
+            map: wt,
+            color: ["#c1a38b", "#9eaaa9", "#b6aaa0", "#c9b69a"][ix],
+            roughness: 0.9,
+          }),
+        );
+      b.position.set(bx, h / 2 + 0.5, bz);
+      b.scale.set(w, h, d);
+      scene.add(b);
+      solid.push({ x: bx, z: bz, w: w / 2 + 1.5, d: d / 2 + 1.5, h });
+      box(scene, bx, h + 1, bz, w + 1, 1, d + 1, "#777d7c");
+      box(scene, bx, h + 2, bz, 5, 2, 5, "#777d7c");
+    }
+  }
+box(scene, -145, 80, -520, 36, 160, 34, "#9fa7a6");
+box(scene, -145, 168, -520, 22, 20, 22, "#adb6b2");
+box(scene, -145, 190, -520, 9, 24, 9, "#bdc5bf");
+cable(
+  new T.Vector3(-145, 202, -520),
+  new T.Vector3(-145, 228, -520),
+  "#a6b3b6",
+  0.7,
+);
+for (let i = 0; i < 22; i++) {
+  const c = ball(
+    scene,
+    -650 + rnd() * 1300,
+    150 + rnd() * 100,
+    -700 + rnd() * 900,
+    1,
+    "#d9dcd7",
+  );
+  c.scale.set(30 + rnd() * 45, 4 + rnd() * 4, 16 + rnd() * 15);
+}
+const disc = new T.Mesh(sphere, new T.MeshBasicMaterial({ color: "#ffe7b0" }));
+disc.position.set(400, 180, -700);
+disc.scale.setScalar(27);
+scene.add(disc);
 // Short, driveable Brooklyn-inspired harbor crossing.
-box(scene,300,.08,-154,310,.8,22,'#4d5a60');box(scene,300,.65,-154,310,.6,2,'#baa88b');for(const z of [-165,-143]){box(scene,300,2,z,310,.3,.3,'#697c80');for(let x=150;x<455;x+=7)box(scene,x,1.2,z,.15,2,.15,'#697c80')}for(const x of [210,380]){for(const z of [-166,-142]){box(scene,x,17,z,6,36,5,'#c4ad8b');box(scene,x,32,z,10,3,7,'#cfb995')}box(scene,x,29,-154,6,4,25,'#c4ad8b');box(scene,x,36,-154,8,2,29,'#cfb995')}for(const z of [-166,-142]){let prev;for(let x=150;x<=455;x+=5){const u=x<210?(x-150)/60:x<380?(x-210)/170:(455-x)/75,y=x>=210&&x<=380?7+28*(2*u-1)**2:3+32*u,p=new T.Vector3(x,y,z);if(prev)cable(prev,p,'#4b6068',.18);if(x%10===0)cable(new T.Vector3(x,1.4,z),p);prev=p}}box(scene,500,-1.3,-155,90,2,260,'#7b8076');for(let i=0;i<10;i++)box(scene,475+rnd()*60,10,-270+rnd()*220,12,20,14,'#b5aa98');const bs=sign('BROOKLYN / HARBOR');bs.position.set(150,4,-141);scene.add(bs);
-const dining=[];for(const [x,z,name,color] of [[-27,58,'CORNER SLICE','#b46143'],[57,-26,'HARBOR COFFEE','#39786e'],[-111,-110,'NOODLE HOUSE','#b37a4f']]){const s=sign(name,15);s.position.set(x,4,z);scene.add(s);box(scene,x,2,z-1,17,4,1,color);box(scene,x,4.8,z+2,18,.3,5,color);for(let i=-1;i<=1;i++){const tx=x+i*5,tz=z+7;box(scene,tx,1,tz,2,.15,2,'#d9ae79');box(scene,tx,.5,tz,.2,1,.2,'#3b4b4e');for(const dx of [-1.4,1.4])box(scene,tx+dx,.6,tz,.8,.8,.8,'#50736b');dining.push([tx,tz+2])}}
-for(const x of [-140,-56,28,128])for(let z=-490;z<240;z+=42){box(scene,x,3,z,.16,6,.16,'#3e535d');box(scene,x+.8,6,z,1.8,.15,.5,'#e5d9b6');if(x===128){box(scene,x,1,z+5,3,.3,1,'#9d805b');box(scene,x-2,2,z+14,.5,4,.5,'#776349');ball(scene,x-2,5,z+14,2.7,'#7f9a78')}}
-function person(c,mask=false){const g=new T.Group();box(g,0,1,0,.48,.68,.28,c);ball(g,0,1.56,0,.22,mask?'#e9a84b':'#c8916b');g.userData.legs=[];g.userData.arms=[];for(const s of [-1,1]){g.userData.legs.push(box(g,s*.14,.4,0,.18,.75,.2,'#2c4151'));g.userData.arms.push(box(g,s*.34,1.02,0,.15,.65,.17,c));if(mask)box(g,s*.09,1.59,.2,.1,.06,.03,'#a9eeeb')}return g}
-const people=[];for(let i=0;i<92;i++){const g=person(['#d79b5b','#6b8990','#b35f55','#577364','#cfb892'][i%5]),diner=i<18,d=dining[i%9],x=diner?d[0]+(rnd()-.5)*3:xs[i%4]+(i%2?17:-17),z=diner?d[1]+rnd()*2:-500+rnd()*730;g.position.set(x,.5,z);scene.add(g);people.push({g,z,diner,phase:rnd()*6})}
+box(scene, 300, 0.08, -154, 310, 0.8, 22, "#4d5a60");
+box(scene, 300, 0.65, -154, 310, 0.6, 2, "#baa88b");
+for (const z of [-165, -143]) {
+  box(scene, 300, 2, z, 310, 0.3, 0.3, "#697c80");
+  for (let x = 150; x < 455; x += 7)
+    box(scene, x, 1.2, z, 0.15, 2, 0.15, "#697c80");
+}
+for (const x of [210, 380]) {
+  for (const z of [-166, -142]) {
+    box(scene, x, 17, z, 6, 36, 5, "#c4ad8b");
+    box(scene, x, 32, z, 10, 3, 7, "#cfb995");
+  }
+  box(scene, x, 29, -154, 6, 4, 25, "#c4ad8b");
+  box(scene, x, 36, -154, 8, 2, 29, "#cfb995");
+}
+for (const z of [-166, -142]) {
+  let prev;
+  for (let x = 150; x <= 455; x += 5) {
+    const u =
+        x < 210 ? (x - 150) / 60 : x < 380 ? (x - 210) / 170 : (455 - x) / 75,
+      y = x >= 210 && x <= 380 ? 7 + 28 * (2 * u - 1) ** 2 : 3 + 32 * u,
+      p = new T.Vector3(x, y, z);
+    if (prev) cable(prev, p, "#4b6068", 0.18);
+    if (x % 10 === 0) cable(new T.Vector3(x, 1.4, z), p);
+    prev = p;
+  }
+}
+box(scene, 500, -1.3, -155, 90, 2, 260, "#7b8076");
+for (let i = 0; i < 10; i++)
+  box(scene, 475 + rnd() * 60, 10, -270 + rnd() * 220, 12, 20, 14, "#b5aa98");
+const bs = sign("BROOKLYN / HARBOR");
+bs.position.set(150, 4, -141);
+scene.add(bs);
+const dining = [];
+for (const [x, z, name, color] of [
+  [-27, 58, "CORNER SLICE", "#b46143"],
+  [57, -26, "HARBOR COFFEE", "#39786e"],
+  [-111, -110, "NOODLE HOUSE", "#b37a4f"],
+]) {
+  const s = sign(name, 15);
+  s.position.set(x, 4, z);
+  scene.add(s);
+  box(scene, x, 2, z - 1, 17, 4, 1, color);
+  box(scene, x, 4.8, z + 2, 18, 0.3, 5, color);
+  for (let i = -1; i <= 1; i++) {
+    const tx = x + i * 5,
+      tz = z + 7;
+    box(scene, tx, 1, tz, 2, 0.15, 2, "#d9ae79");
+    box(scene, tx, 0.5, tz, 0.2, 1, 0.2, "#3b4b4e");
+    for (const dx of [-1.4, 1.4])
+      box(scene, tx + dx, 0.6, tz, 0.8, 0.8, 0.8, "#50736b");
+    dining.push([tx, tz + 2]);
+  }
+}
+for (const x of [-140, -56, 28, 128])
+  for (let z = -490; z < 240; z += 42) {
+    box(scene, x, 3, z, 0.16, 6, 0.16, "#3e535d");
+    box(scene, x + 0.8, 6, z, 1.8, 0.15, 0.5, "#e5d9b6");
+    if (x === 128) {
+      box(scene, x, 1, z + 5, 3, 0.3, 1, "#9d805b");
+      box(scene, x - 2, 2, z + 14, 0.5, 4, 0.5, "#776349");
+      ball(scene, x - 2, 5, z + 14, 2.7, "#7f9a78");
+    }
+  }
+function person(c, mask = false) {
+  const g = new T.Group();
+  box(g, 0, 1, 0, 0.48, 0.68, 0.28, c);
+  ball(g, 0, 1.56, 0, 0.22, mask ? "#e9a84b" : "#c8916b");
+  g.userData.legs = [];
+  g.userData.arms = [];
+  for (const s of [-1, 1]) {
+    g.userData.legs.push(box(g, s * 0.14, 0.4, 0, 0.18, 0.75, 0.2, "#2c4151"));
+    g.userData.arms.push(box(g, s * 0.34, 1.02, 0, 0.15, 0.65, 0.17, c));
+    if (mask) box(g, s * 0.09, 1.59, 0.2, 0.1, 0.06, 0.03, "#a9eeeb");
+  }
+  return g;
+}
+const people = [];
+for (let i = 0; i < 92; i++) {
+  const g = person(
+      ["#d79b5b", "#6b8990", "#b35f55", "#577364", "#cfb892"][i % 5],
+    ),
+    diner = i < 18,
+    d = dining[i % 9],
+    x = diner ? d[0] + (rnd() - 0.5) * 3 : xs[i % 4] + (i % 2 ? 17 : -17),
+    z = diner ? d[1] + rnd() * 2 : -500 + rnd() * 730;
+  g.position.set(x, 0.5, z);
+  scene.add(g);
+  people.push({ g, z, diner, phase: rnd() * 6 });
+}
 // A small chat group greets the player near the starting block.
-for(let i=0;i<4;i++){const g=person(['#b35f55','#6b8990'][i%2]);g.position.set(58,.5,62+i*3);scene.add(g);people.push({g,z:62+i*3,diner:true,phase:i})}
-function vehicle(c,police=false){const g=new T.Group();box(g,0,.8,0,2.2,1,4.4,c);box(g,0,1.5,0,1.8,.65,2.2,'#304b5e');for(const x of [-1.1,1.1])for(const z of [-1.4,1.4]){const w=new T.Mesh(new T.CylinderGeometry(.4,.4,.25,10),mat('#20282b'));w.rotation.z=Math.PI/2;w.position.set(x,.5,z);g.add(w)}box(g,0,.9,2.23,1.6,.16,.07,'#e8b59a');if(c==='#e5b84b')box(g,0,1.95,0,.75,.25,.6,c);if(police){box(g,-.3,1.95,0,.6,.2,.5,'#ee5a50');box(g,.3,1.95,0,.6,.2,.5,'#538be9')}return g}
-const traffic=[];for(let i=0;i<32;i++){const police=i>29,g=vehicle(police?'#e1e7e7':i%3===0?'#e5b84b':['#627b8b','#a15c4b','#c2c0b2'][i%3],police),bridge=i>=24&&i<30,dir=i%2?1:-1;g.position.set(bridge?170+(i-24)*44:xs[i%4]+dir*5,.45,bridge?(dir>0?-159:-149):-500+rnd()*700);g.rotation.y=bridge?Math.PI/2:dir>0?0:Math.PI;scene.add(g);traffic.push({g,police,bridge,dir,speed:8+rnd()*5})}
-const car=buildRear();car.scale.setScalar(.52);car.position.set(42,.4,72);scene.add(car);box(car,0,1.1,-2,3.9,1.25,4.2,'#8d9397');box(car,0,1.9,-2.4,3,.65,1.8,'#283f4e');for(const x of [-2.1,2.1]){const w=new T.Mesh(new T.CylinderGeometry(.78,.78,.55,20),mat('#141b20'));w.rotation.z=Math.PI/2;w.position.set(x,.85,-3.2);car.add(w)}
-const courier=person('#e5a13e',true);courier.scale.setScalar(1.2);scene.add(courier);const web=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]),new T.LineBasicMaterial({color:'#e2f6ef'}));scene.add(web);
-let active=false,overview=false,speed=0,heading=0,vy=0,heat=0,lastHit=-2,talkAt=0,voiceId=0,muted=false,time=0;const keys=new Set(),state={};window.__nyc=state;
-let audio,master,engine,filter;function audioStart(){try{audio=new(window.AudioContext||window.webkitAudioContext)();master=audio.createGain();master.gain.value=.3;master.connect(audio.destination);const b=audio.createBuffer(1,audio.sampleRate*2,audio.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const n=audio.createBufferSource();n.buffer=b;n.loop=true;filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=550;const gain=audio.createGain();gain.gain.value=.06;n.connect(filter).connect(gain).connect(master);n.start();engine=audio.createOscillator();engine.type='sawtooth';const eg=audio.createGain();eg.gain.value=.013;engine.connect(eg).connect(master);engine.frequency.value=48;engine.start()}catch(e){say('AUDIO','Sound unavailable. Captions remain on.',false)}}
-function tone(f,d=.2,v=.15){if(!audio||muted)return;const o=audio.createOscillator(),g=audio.createGain();o.type='triangle';o.frequency.value=f;o.connect(g).connect(master);g.gain.setValueAtTime(v,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+d);o.start();o.stop(audio.currentTime+d)}function mute(){muted=!muted;if(master)master.gain.value=muted?0:.3;if(muted)window.speechSynthesis?.cancel();$('sound').textContent=muted?'SOUND OFF · M':'SOUND ON · M'}$('sound').onclick=mute;
-const dialogue=[['PIZZA COUNTER','Two slices and a view. That is the special.'],['LOCAL','Hey, is that thing street legal?'],['COMMUTER','If it flies, can it skip the bridge traffic?'],['COFFEE QUEUE','I asked for oat milk, not a rocket launch.'],['LOCAL','That sunset almost makes the rent worth it.'],['VISITOR','Is this the way to Brooklyn?'],['DELIVERY RIDER','Bike lane! Watch the bike lane!'],['DINER','Best slice in the city. I will defend that.'],['LOCAL','Only in New York. Seriously.'],['COMMUTER','My train is delayed. Can I get a lift?'],['LOCAL','The guy on the rooftops? Yeah, he lives around here.']];
-function say(who,text,speak=true){$('speaker').textContent=who;$('words').textContent=text;$('dialogue').style.display='block';clearTimeout(say.timer);say.timer=setTimeout(()=>$('dialogue').style.display='none',6000);if(speak&&!muted&&'speechSynthesis'in window){speechSynthesis.cancel();const voices=speechSynthesis.getVoices().filter(v=>v.localService&&v.lang.startsWith('en'));if(!voices.length){for(let i=0;i<7;i++)setTimeout(()=>tone(180+(i%3)*95,.08,.045),i*115);return;}const u=new SpeechSynthesisUtterance(text);u.voice=voices[voiceId++%voices.length];u.rate=1.03;u.volume=.65;speechSynthesis.speak(u)}}function talk(){if(people.some(p=>p.g.position.distanceTo(car.position)<30))say(...dialogue[Math.floor(Math.random()*dialogue.length)]);else say('CITY','Get closer to a sidewalk or a cafe to hear people.',false);talkAt=time}
-function reset(){car.position.set(42,.4,72);speed=0;heading=0;vy=0;heat=0}addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(!active||e.repeat)return;if(e.code==='KeyE')talk();if(e.code==='KeyM')mute();if(e.code==='KeyC')overview=!overview;if(e.code==='KeyR')reset();if(e.code==='KeyH'){tone(340,.3);tone(440,.25,.1);say('LOCAL','Alright, alright! We heard you!',false)}if(e.code.startsWith('Shift')&&car.position.y<.5)vy=11});addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>keys.clear());$('start').onclick=()=>{entry.remove();active=true;audioStart();say('HARBOR RADIO','Welcome to the neighborhood. E to talk, C for the skyline.',false)};
-const map=$('map').getContext('2d');function drawMap(){map.clearRect(0,0,170,170);map.save();map.beginPath();map.arc(85,85,84,0,Math.PI*2);map.clip();map.fillStyle='#174354';map.fillRect(0,0,170,170);map.fillStyle='#53605f';map.fillRect(12,0,91,170);map.strokeStyle='#a6a394';map.lineWidth=2;for(const x of xs){map.beginPath();map.moveTo(12+(x+264)*.22,0);map.lineTo(12+(x+264)*.22,170);map.stroke()}for(const z of zs){map.beginPath();map.moveTo(12,(z+580)*.2);map.lineTo(103,(z+580)*.2);map.stroke()}map.fillStyle='#c6b394';map.fillRect(103,84,55,3);map.translate(12+(car.position.x+264)*.22,(car.position.z+580)*.2);map.rotate(-heading);map.fillStyle='#ffd18c';map.beginPath();map.moveTo(0,-5);map.lineTo(-3,4);map.lineTo(3,4);map.fill();map.restore()}
-function update(t,dt){if(active){const throttle=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0),boost=keys.has('Space'),turn=(keys.has('KeyA')||keys.has('ArrowLeft')?1:0)-(keys.has('KeyD')||keys.has('ArrowRight')?1:0);speed+=throttle*(boost?32:17)*dt;speed*=Math.exp(-(throttle?.3:1.3)*dt);speed=T.MathUtils.clamp(speed,-12,boost?52:30);heading+=turn*1.5*dt*Math.min(1,Math.abs(speed)/6)*Math.sign(speed||1);const old=car.position.clone();car.position.x-=Math.sin(heading)*speed*dt;car.position.z-=Math.cos(heading)*speed*dt;vy-=22*dt;car.position.y=Math.max(.4,car.position.y+vy*dt);if(car.position.y===.4)vy=0;const x=car.position.x,z=car.position.z,onLand=x>-260&&x<140&&z>-575&&z<265,onBridge=x>=140&&x<455&&Math.abs(z+154)<10,farLand=x>=455&&x<545&&z>-285&&z<-25,blocked=solid.some(b=>car.position.y<b.h&&Math.abs(x-b.x)<b.w&&Math.abs(z-b.z)<b.d);if(blocked||(!onLand&&!onBridge&&!farLand)){car.position.x=old.x;car.position.z=old.z;speed*=-.25;if(t-lastHit>2){say('DRIVER',blocked?'Easy on the bodywork. Stay on the street.':'Harbor edge. Find the bridge, not the water.',false);lastHit=t}}car.rotation.y=heading;car.rotation.z=T.MathUtils.lerp(car.rotation.z,-turn*speed*.002,.12);car.userData.update(t);for(const v of traffic)if(v.g.position.distanceTo(car.position)<2.7&&car.position.y<2&&t-lastHit>1){speed*=-.3;heat=Math.min(3,heat+1);lastHit=t;tone(95,.12,.2);say('TRAFFIC','Watch it! Patrol spotted the collision.',false)}heat=Math.max(0,heat-dt*.025);if(t-talkAt>12)talk();if(audio&&engine){engine.frequency.setTargetAtTime(45+Math.abs(speed)*4,audio.currentTime,.1);filter.frequency.setTargetAtTime(400+Math.abs(speed)*22,audio.currentTime,.1)}if(Math.floor(t/6)!==Math.floor((t-dt)/6))tone(280+Math.random()*180,.16,.07)}
-for(const p of people){if(!p.diner){p.g.position.z=p.z+Math.sin(t*.035+p.phase)*28;const walk=t*6+p.phase;p.g.userData.legs.forEach((l,i)=>l.rotation.x=Math.sin(walk+i*Math.PI)*.4);p.g.userData.arms.forEach((a,i)=>a.rotation.x=-Math.sin(walk+i*Math.PI)*.3);p.g.rotation.y=Math.cos(t*.035+p.phase)>0?0:Math.PI}else p.g.rotation.y=Math.sin(t*.3+p.phase)*.3}
-for(const v of traffic){if(v.police&&heat>.2&&v.g.position.distanceTo(car.position)<170){const d=car.position.clone().sub(v.g.position);d.y=0;v.g.rotation.y=Math.atan2(d.x,d.z);v.g.position.addScaledVector(d.normalize(),(6+heat*4)*dt)}else if(v.bridge){v.g.position.x+=v.dir*v.speed*dt;if(v.g.position.x>450)v.g.position.x=155;if(v.g.position.x<155)v.g.position.x=450;v.g.rotation.y=v.dir>0?Math.PI/2:-Math.PI/2}else{v.g.position.z+=v.dir*v.speed*dt;if(v.g.position.z>250)v.g.position.z=-550;if(v.g.position.z<-550)v.g.position.z=250}}
-const cycle=t%34,perched=active&&cycle>=24&&cycle<29;if(perched){courier.position.copy(car.position).add(new T.Vector3(0,1.7,0));courier.rotation.set(0,heading,0);web.visible=false;if(!state.perched)say('WEB COURIER','Mind if I ride for a block? My arms are killing me.')}else{const p=cycle/24*Math.PI*2;courier.position.set(42+Math.sin(p)*9,17+Math.cos(p*2)*10,-30+Math.cos(p)*55);courier.rotation.set(0,t*.3,Math.sin(p)*.6);web.visible=true;const arr=web.geometry.attributes.position;arr.setXYZ(0,courier.position.x,courier.position.y+1.4,courier.position.z);arr.setXYZ(1,12,65,courier.position.z-15);arr.needsUpdate=true}courier.userData.arms.forEach((a,i)=>a.rotation.z=perched?(i?-.4:.4):(i?-2.7:.2));state.perched=perched;
-let target=overview?new T.Vector3(350,260,310):new T.Vector3(car.position.x+Math.sin(heading)*12,car.position.y+6,car.position.z+Math.cos(heading)*12);if(!active)target.set(100,33,123);camera.position.lerp(target,1-Math.exp(-dt*5));camera.lookAt(overview?new T.Vector3(20,10,-140):active?car.position.clone().add(new T.Vector3(-Math.sin(heading)*8,1.2,-Math.cos(heading)*8)):new T.Vector3(0,6,-60));const wp=water.geometry.attributes.position;for(let i=0;i<wp.count;i++)wp.setZ(i,Math.sin(wp.getX(i)*.025+t*.7)*.2+Math.cos(wp.getY(i)*.03+t)*.17);wp.needsUpdate=true;$('speed').textContent=Math.round(Math.abs(speed)*2.237);$('heat').textContent=heat>.2?'★'.repeat(Math.ceil(heat))+' PATROL':'FREE ROAM';$('notice').textContent=perched?'ROOFTOP VISITOR · Hitching a ride':overview?'CITY VIEW · C to return':'';drawMap();Object.assign(state,{ready:true,time:t,speed,heat,position:{x:car.position.x,y:car.position.y,z:car.position.z},pedestrians:people.length,traffic:traffic.length,audioState:audio?.state||'not started',voices:window.speechSynthesis?.getVoices().filter(v=>v.localService&&v.lang.startsWith('en')).length||0})}
-let last=performance.now();renderer.setAnimationLoop(now=>{const dt=Math.min((now-last)/1000,.05);last=now;time+=dt;update(time,dt);renderer.render(scene,camera)});addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+for (let i = 0; i < 4; i++) {
+  const g = person(["#b35f55", "#6b8990"][i % 2]);
+  g.position.set(58, 0.5, 62 + i * 3);
+  scene.add(g);
+  people.push({ g, z: 62 + i * 3, diner: true, phase: i });
+}
+function vehicle(c, police = false) {
+  const g = new T.Group();
+  box(g, 0, 0.8, 0, 2.2, 1, 4.4, c);
+  box(g, 0, 1.5, 0, 1.8, 0.65, 2.2, "#304b5e");
+  for (const x of [-1.1, 1.1])
+    for (const z of [-1.4, 1.4]) {
+      const w = new T.Mesh(
+        new T.CylinderGeometry(0.4, 0.4, 0.25, 10),
+        mat("#20282b"),
+      );
+      w.rotation.z = Math.PI / 2;
+      w.position.set(x, 0.5, z);
+      g.add(w);
+    }
+  box(g, 0, 0.9, 2.23, 1.6, 0.16, 0.07, "#e8b59a");
+  if (c === "#e5b84b") box(g, 0, 1.95, 0, 0.75, 0.25, 0.6, c);
+  if (police) {
+    box(g, -0.3, 1.95, 0, 0.6, 0.2, 0.5, "#ee5a50");
+    box(g, 0.3, 1.95, 0, 0.6, 0.2, 0.5, "#538be9");
+  }
+  return g;
+}
+const traffic = [];
+for (let i = 0; i < 32; i++) {
+  const police = i > 29,
+    g = vehicle(
+      police
+        ? "#e1e7e7"
+        : i % 3 === 0
+          ? "#e5b84b"
+          : ["#627b8b", "#a15c4b", "#c2c0b2"][i % 3],
+      police,
+    ),
+    bridge = i >= 24 && i < 30,
+    dir = i % 2 ? 1 : -1;
+  g.position.set(
+    bridge ? 170 + (i - 24) * 44 : xs[i % 4] + dir * 5,
+    0.45,
+    bridge ? (dir > 0 ? -159 : -149) : -500 + rnd() * 700,
+  );
+  g.rotation.y = bridge ? Math.PI / 2 : dir > 0 ? 0 : Math.PI;
+  scene.add(g);
+  traffic.push({ g, police, bridge, dir, speed: 8 + rnd() * 5 });
+}
+const car = buildRear();
+car.scale.setScalar(0.52);
+car.position.set(42, 0.4, 72);
+scene.add(car);
+box(car, 0, 1.1, -2, 3.9, 1.25, 4.2, "#8d9397");
+box(car, 0, 1.9, -2.4, 3, 0.65, 1.8, "#283f4e");
+for (const x of [-2.1, 2.1]) {
+  const w = new T.Mesh(
+    new T.CylinderGeometry(0.78, 0.78, 0.55, 20),
+    mat("#141b20"),
+  );
+  w.rotation.z = Math.PI / 2;
+  w.position.set(x, 0.85, -3.2);
+  car.add(w);
+}
+const courier = person("#e5a13e", true);
+courier.scale.setScalar(1.2);
+scene.add(courier);
+const web = new T.Line(
+  new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]),
+  new T.LineBasicMaterial({ color: "#e2f6ef" }),
+);
+scene.add(web);
+let active = false,
+  overview = false,
+  speed = 0,
+  heading = 0,
+  vy = 0,
+  heat = 0,
+  lastHit = -2,
+  talkAt = 0,
+  voiceId = 0,
+  muted = false,
+  time = 0;
+const keys = new Set(),
+  state = {};
+window.__nyc = state;
+let audio, master, engine, filter;
+function audioStart() {
+  try {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    master = audio.createGain();
+    master.gain.value = 0.3;
+    master.connect(audio.destination);
+    const b = audio.createBuffer(1, audio.sampleRate * 2, audio.sampleRate),
+      d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const n = audio.createBufferSource();
+    n.buffer = b;
+    n.loop = true;
+    filter = audio.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 550;
+    const gain = audio.createGain();
+    gain.gain.value = 0.06;
+    n.connect(filter).connect(gain).connect(master);
+    n.start();
+    engine = audio.createOscillator();
+    engine.type = "sawtooth";
+    const eg = audio.createGain();
+    eg.gain.value = 0.013;
+    engine.connect(eg).connect(master);
+    engine.frequency.value = 48;
+    engine.start();
+  } catch (e) {
+    say("AUDIO", "Sound unavailable. Captions remain on.", false);
+  }
+}
+function tone(f, d = 0.2, v = 0.15) {
+  if (!audio || muted) return;
+  const o = audio.createOscillator(),
+    g = audio.createGain();
+  o.type = "triangle";
+  o.frequency.value = f;
+  o.connect(g).connect(master);
+  g.gain.setValueAtTime(v, audio.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + d);
+  o.start();
+  o.stop(audio.currentTime + d);
+}
+function mute() {
+  muted = !muted;
+  if (master) master.gain.value = muted ? 0 : 0.3;
+  if (muted) window.speechSynthesis?.cancel();
+  $("sound").textContent = muted ? "SOUND OFF · M" : "SOUND ON · M";
+}
+$("sound").onclick = mute;
+const dialogue = [
+  ["PIZZA COUNTER", "Two slices and a view. That is the special."],
+  ["LOCAL", "Hey, is that thing street legal?"],
+  ["COMMUTER", "If it flies, can it skip the bridge traffic?"],
+  ["COFFEE QUEUE", "I asked for oat milk, not a rocket launch."],
+  ["LOCAL", "That sunset almost makes the rent worth it."],
+  ["VISITOR", "Is this the way to Brooklyn?"],
+  ["DELIVERY RIDER", "Bike lane! Watch the bike lane!"],
+  ["DINER", "Best slice in the city. I will defend that."],
+  ["LOCAL", "Only in New York. Seriously."],
+  ["COMMUTER", "My train is delayed. Can I get a lift?"],
+  ["LOCAL", "The guy on the rooftops? Yeah, he lives around here."],
+];
+function say(who, text, speak = true) {
+  $("speaker").textContent = who;
+  $("words").textContent = text;
+  $("dialogue").style.display = "block";
+  clearTimeout(say.timer);
+  say.timer = setTimeout(() => ($("dialogue").style.display = "none"), 6000);
+  if (speak && !muted && "speechSynthesis" in window) {
+    speechSynthesis.cancel();
+    const voices = speechSynthesis
+      .getVoices()
+      .filter((v) => v.localService && v.lang.startsWith("en"));
+    if (!voices.length) {
+      for (let i = 0; i < 7; i++)
+        setTimeout(() => tone(180 + (i % 3) * 95, 0.08, 0.045), i * 115);
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = voices[voiceId++ % voices.length];
+    u.rate = 1.03;
+    u.volume = 0.65;
+    speechSynthesis.speak(u);
+  }
+}
+function talk() {
+  if (people.some((p) => p.g.position.distanceTo(car.position) < 30))
+    say(...dialogue[Math.floor(Math.random() * dialogue.length)]);
+  else say("CITY", "Get closer to a sidewalk or a cafe to hear people.", false);
+  talkAt = time;
+}
+function reset() {
+  car.position.set(42, 0.4, 72);
+  speed = 0;
+  heading = 0;
+  vy = 0;
+  heat = 0;
+}
+addEventListener("keydown", (e) => {
+  if (
+    ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(
+      e.code,
+    )
+  )
+    e.preventDefault();
+  keys.add(e.code);
+  if (!active || e.repeat) return;
+  if (e.code === "KeyE") talk();
+  if (e.code === "KeyM") mute();
+  if (e.code === "KeyC") overview = !overview;
+  if (e.code === "KeyR") reset();
+  if (e.code === "KeyH") {
+    tone(340, 0.3);
+    tone(440, 0.25, 0.1);
+    say("LOCAL", "Alright, alright! We heard you!", false);
+  }
+  if (e.code.startsWith("Shift") && car.position.y < 0.5) vy = 11;
+});
+addEventListener("keyup", (e) => keys.delete(e.code));
+addEventListener("blur", () => keys.clear());
+$("start").onclick = () => {
+  entry.remove();
+  active = true;
+  audioStart();
+  say(
+    "HARBOR RADIO",
+    "Welcome to the neighborhood. E to talk, C for the skyline.",
+    false,
+  );
+};
+const map = $("map").getContext("2d");
+function drawMap() {
+  map.clearRect(0, 0, 170, 170);
+  map.save();
+  map.beginPath();
+  map.arc(85, 85, 84, 0, Math.PI * 2);
+  map.clip();
+  map.fillStyle = "#174354";
+  map.fillRect(0, 0, 170, 170);
+  map.fillStyle = "#53605f";
+  map.fillRect(12, 0, 91, 170);
+  map.strokeStyle = "#a6a394";
+  map.lineWidth = 2;
+  for (const x of xs) {
+    map.beginPath();
+    map.moveTo(12 + (x + 264) * 0.22, 0);
+    map.lineTo(12 + (x + 264) * 0.22, 170);
+    map.stroke();
+  }
+  for (const z of zs) {
+    map.beginPath();
+    map.moveTo(12, (z + 580) * 0.2);
+    map.lineTo(103, (z + 580) * 0.2);
+    map.stroke();
+  }
+  map.fillStyle = "#c6b394";
+  map.fillRect(103, 84, 55, 3);
+  map.translate(
+    12 + (car.position.x + 264) * 0.22,
+    (car.position.z + 580) * 0.2,
+  );
+  map.rotate(-heading);
+  map.fillStyle = "#ffd18c";
+  map.beginPath();
+  map.moveTo(0, -5);
+  map.lineTo(-3, 4);
+  map.lineTo(3, 4);
+  map.fill();
+  map.restore();
+}
+function update(t, dt) {
+  if (active) {
+    const throttle =
+        (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
+        (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0),
+      boost = keys.has("Space"),
+      turn =
+        (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0) -
+        (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0);
+    speed += throttle * (boost ? 32 : 17) * dt;
+    speed *= Math.exp(-(throttle ? 0.3 : 1.3) * dt);
+    speed = T.MathUtils.clamp(speed, -12, boost ? 52 : 30);
+    heading +=
+      turn *
+      1.5 *
+      dt *
+      Math.min(1, Math.abs(speed) / 6) *
+      Math.sign(speed || 1);
+    const old = car.position.clone();
+    car.position.x -= Math.sin(heading) * speed * dt;
+    car.position.z -= Math.cos(heading) * speed * dt;
+    vy -= 22 * dt;
+    car.position.y = Math.max(0.4, car.position.y + vy * dt);
+    if (car.position.y === 0.4) vy = 0;
+    const x = car.position.x,
+      z = car.position.z,
+      onLand = x > -260 && x < 140 && z > -575 && z < 265,
+      onBridge = x >= 140 && x < 455 && Math.abs(z + 154) < 10,
+      farLand = x >= 455 && x < 545 && z > -285 && z < -25,
+      blocked = solid.some(
+        (b) =>
+          car.position.y < b.h &&
+          Math.abs(x - b.x) < b.w &&
+          Math.abs(z - b.z) < b.d,
+      );
+    if (blocked || (!onLand && !onBridge && !farLand)) {
+      car.position.x = old.x;
+      car.position.z = old.z;
+      speed *= -0.25;
+      if (t - lastHit > 2) {
+        say(
+          "DRIVER",
+          blocked
+            ? "Easy on the bodywork. Stay on the street."
+            : "Harbor edge. Find the bridge, not the water.",
+          false,
+        );
+        lastHit = t;
+      }
+    }
+    car.rotation.y = heading;
+    car.rotation.z = T.MathUtils.lerp(
+      car.rotation.z,
+      -turn * speed * 0.002,
+      0.12,
+    );
+    car.userData.update(t);
+    for (const v of traffic)
+      if (
+        v.g.position.distanceTo(car.position) < 2.7 &&
+        car.position.y < 2 &&
+        t - lastHit > 1
+      ) {
+        speed *= -0.3;
+        heat = Math.min(3, heat + 1);
+        lastHit = t;
+        tone(95, 0.12, 0.2);
+        say("TRAFFIC", "Watch it! Patrol spotted the collision.", false);
+      }
+    heat = Math.max(0, heat - dt * 0.025);
+    if (t - talkAt > 12) talk();
+    if (audio && engine) {
+      engine.frequency.setTargetAtTime(
+        45 + Math.abs(speed) * 4,
+        audio.currentTime,
+        0.1,
+      );
+      filter.frequency.setTargetAtTime(
+        400 + Math.abs(speed) * 22,
+        audio.currentTime,
+        0.1,
+      );
+    }
+    if (Math.floor(t / 6) !== Math.floor((t - dt) / 6))
+      tone(280 + Math.random() * 180, 0.16, 0.07);
+  }
+  for (const p of people) {
+    if (!p.diner) {
+      p.g.position.z = p.z + Math.sin(t * 0.035 + p.phase) * 28;
+      const walk = t * 6 + p.phase;
+      p.g.userData.legs.forEach(
+        (l, i) => (l.rotation.x = Math.sin(walk + i * Math.PI) * 0.4),
+      );
+      p.g.userData.arms.forEach(
+        (a, i) => (a.rotation.x = -Math.sin(walk + i * Math.PI) * 0.3),
+      );
+      p.g.rotation.y = Math.cos(t * 0.035 + p.phase) > 0 ? 0 : Math.PI;
+    } else p.g.rotation.y = Math.sin(t * 0.3 + p.phase) * 0.3;
+  }
+  for (const v of traffic) {
+    if (v.police && heat > 0.2 && v.g.position.distanceTo(car.position) < 170) {
+      const d = car.position.clone().sub(v.g.position);
+      d.y = 0;
+      v.g.rotation.y = Math.atan2(d.x, d.z);
+      v.g.position.addScaledVector(d.normalize(), (6 + heat * 4) * dt);
+    } else if (v.bridge) {
+      v.g.position.x += v.dir * v.speed * dt;
+      if (v.g.position.x > 450) v.g.position.x = 155;
+      if (v.g.position.x < 155) v.g.position.x = 450;
+      v.g.rotation.y = v.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    } else {
+      v.g.position.z += v.dir * v.speed * dt;
+      if (v.g.position.z > 250) v.g.position.z = -550;
+      if (v.g.position.z < -550) v.g.position.z = 250;
+    }
+  }
+  const cycle = t % 24,
+    perched = active && cycle >= 10 && cycle < 15;
+  if (perched) {
+    courier.position.copy(car.position).add(new T.Vector3(0, 1.1, 0));
+    courier.rotation.set(0, heading, 0);
+    web.visible = false;
+    if (!state.perched)
+      say("WEB COURIER", "Mind if I ride for a block? My arms are killing me.");
+  } else {
+    const p = (cycle / 10) * Math.PI * 2;
+    courier.position.set(
+      42 + Math.sin(p) * 9,
+      17 + Math.cos(p * 2) * 10,
+      -30 + Math.cos(p) * 55,
+    );
+    courier.rotation.set(0, t * 0.3, Math.sin(p) * 0.6);
+    web.visible = true;
+    const arr = web.geometry.attributes.position;
+    arr.setXYZ(
+      0,
+      courier.position.x,
+      courier.position.y + 1.4,
+      courier.position.z,
+    );
+    arr.setXYZ(1, 12, 65, courier.position.z - 15);
+    arr.needsUpdate = true;
+  }
+  courier.userData.arms.forEach(
+    (a, i) => (a.rotation.z = perched ? (i ? -0.4 : 0.4) : i ? -2.7 : 0.2),
+  );
+  state.perched = perched;
+  let target = overview
+    ? new T.Vector3(350, 260, 310)
+    : new T.Vector3(
+        car.position.x + Math.sin(heading) * 12,
+        car.position.y + 6,
+        car.position.z + Math.cos(heading) * 12,
+      );
+  if (!active) target.set(100, 33, 123);
+  camera.position.lerp(target, 1 - Math.exp(-dt * 5));
+  camera.lookAt(
+    overview
+      ? new T.Vector3(20, 10, -140)
+      : active
+        ? car.position
+            .clone()
+            .add(
+              new T.Vector3(
+                -Math.sin(heading) * 8,
+                1.2,
+                -Math.cos(heading) * 8,
+              ),
+            )
+        : new T.Vector3(0, 6, -60),
+  );
+  const wp = water.geometry.attributes.position;
+  for (let i = 0; i < wp.count; i++)
+    wp.setZ(
+      i,
+      Math.sin(wp.getX(i) * 0.025 + t * 0.7) * 0.2 +
+        Math.cos(wp.getY(i) * 0.03 + t) * 0.17,
+    );
+  wp.needsUpdate = true;
+  $("speed").textContent = Math.round(Math.abs(speed) * 2.237);
+  $("heat").textContent =
+    heat > 0.2 ? "★".repeat(Math.ceil(heat)) + " PATROL" : "FREE ROAM";
+  $("notice").textContent = perched
+    ? "ROOFTOP VISITOR · Hitching a ride"
+    : overview
+      ? "CITY VIEW · C to return"
+      : "";
+  drawMap();
+  Object.assign(state, {
+    ready: true,
+    time: t,
+    speed,
+    heat,
+    position: { x: car.position.x, y: car.position.y, z: car.position.z },
+    pedestrians: people.length,
+    traffic: traffic.length,
+    audioState: audio?.state || "not started",
+    voices:
+      window.speechSynthesis
+        ?.getVoices()
+        .filter((v) => v.localService && v.lang.startsWith("en")).length || 0,
+  });
+}
+// Batch static streets and dynamic pedestrian/vehicle boxes to keep draw calls bounded.
+const batches = [];
+for (const dynamic of [false, true]) {
+  const groups = new Map();
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    if (o.isMesh && o.geometry === cube && (o.parent !== scene) === dynamic) {
+      if (!groups.has(o.material)) groups.set(o.material, []);
+      groups.get(o.material).push(o);
+    }
+  });
+  for (const [material, items] of groups) {
+    const inst = new T.InstancedMesh(cube, material, items.length);
+    inst.frustumCulled = false;
+    items.forEach((o, i) => {
+      inst.setMatrixAt(i, o.matrixWorld);
+      o.visible = false;
+    });
+    scene.add(inst);
+    if (dynamic) batches.push({ inst, items });
+  }
+}
+function syncBatches() {
+  scene.updateMatrixWorld(true);
+  for (const { inst, items } of batches) {
+    items.forEach((o, i) => inst.setMatrixAt(i, o.matrixWorld));
+    inst.instanceMatrix.needsUpdate = true;
+  }
+}
+let last = performance.now();
+renderer.setAnimationLoop((now) => {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  time += dt;
+  update(time, dt);
+  syncBatches();
+  renderer.render(scene, camera);
+});
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
