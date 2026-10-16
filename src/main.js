@@ -454,6 +454,7 @@ function reset() {
   heading = 0;
   vy = 0;
   heat = 0;
+  restartRun();
 }
 addEventListener("keydown", (e) => {
   if (
@@ -528,7 +529,7 @@ function drawMap() {
   map.restore();
 }
 function update(t, dt) {
-  if (active) {
+  if (active && !HC.over) {
     const throttle =
         (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) -
         (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0),
@@ -565,6 +566,7 @@ function update(t, dt) {
     if (blocked || (!onLand && !onBridge && !farLand)) {
       car.position.x = old.x;
       car.position.z = old.z;
+      if (blocked && Math.abs(speed) > 9) crime("BUILDING CRASH", 2);
       speed *= -0.25;
       if (t - lastHit > 2) {
         say(
@@ -591,12 +593,13 @@ function update(t, dt) {
         t - lastHit > 1
       ) {
         speed *= -0.3;
-        heat = Math.min(3, heat + 1);
+        crime("TRAFFIC COLLISION", 2);
         lastHit = t;
         tone(95, 0.12, 0.2);
         say("TRAFFIC", "Watch it! Patrol spotted the collision.", false);
       }
-    heat = Math.max(0, heat - dt * 0.025);
+    heatTick(t, dt);
+    hcWorld(t, dt);
     if (t - talkAt > 12) talk();
     if (audio && engine) {
       engine.frequency.setTargetAtTime(
@@ -614,6 +617,7 @@ function update(t, dt) {
       tone(280 + Math.random() * 180, 0.16, 0.07);
   }
   for (const p of people) {
+    if (p.fly) { flyPed(p, dt); continue; }
     if (!p.diner) {
       p.g.position.z = p.z + Math.sin(t * 0.035 + p.phase) * 28;
       const walk = t * 6 + p.phase;
@@ -627,7 +631,7 @@ function update(t, dt) {
     } else p.g.rotation.y = Math.sin(t * 0.3 + p.phase) * 0.3;
   }
   for (const v of traffic) {
-    if (v.police && heat > 0.2 && v.g.position.distanceTo(car.position) < 170) {
+    if (false && v.g.position.distanceTo(car.position) < 170) {
       const d = car.position.clone().sub(v.g.position);
       d.y = 0;
       v.g.rotation.y = Math.atan2(d.x, d.z);
@@ -707,19 +711,21 @@ function update(t, dt) {
     );
   wp.needsUpdate = true;
   $("speed").textContent = Math.round(Math.abs(speed) * 2.237);
-  $("heat").textContent =
-    heat > 0.2 ? "★".repeat(Math.ceil(heat)) + " PATROL" : "FREE ROAM";
+  $("heat").textContent = hudHeat();
   $("notice").textContent = perched
     ? "ROOFTOP VISITOR · Hitching a ride"
     : overview
       ? "CITY VIEW · C to return"
       : "";
   drawMap();
+  drawCops();
+  hcFx(t, dt);
   Object.assign(state, {
     ready: true,
     time: t,
     speed,
     heat,
+    ...heatState(),
     position: { x: car.position.x, y: car.position.y, z: car.position.z },
     pedestrians: people.length,
     traffic: traffic.length,
@@ -730,6 +736,259 @@ function update(t, dt) {
         .filter((v) => v.localService && v.lang.startsWith("en")).length || 0,
   });
 }
+// ===== HEAT CLOCK: crime -> wanted level -> survival timer is the score =====
+const HC = { chase: false, over: false, clock: 0, level: 0, peak: 0, busted: 0, cool: 0, dist: 0, smashes: 0, hits: 0, crimes: 0, crimeAcc: 0, nextEsc: 25, spawnAt: 0, best: 0 };
+try { HC.best = Number(localStorage.getItem("heatclock.best") || 0); } catch (e) {}
+const hcStyle = document.createElement("style");
+hcStyle.textContent = `#hc{position:fixed;top:14px;left:50%;transform:translateX(-50%);text-align:center;font-family:system-ui;color:#fff;pointer-events:none;text-shadow:0 2px 8px #000a}#hc .lab{font-size:11px;letter-spacing:4px;color:#ffce87}#hc .big{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.05}#hc .stars{font-size:20px;color:#ff5a4f;letter-spacing:3px;min-height:24px}#hc .bar{width:220px;height:7px;margin:5px auto 0;background:#0007;border-radius:4px;overflow:hidden;display:none}#hc .bar i{display:block;height:100%;width:0}#hcb i{background:linear-gradient(90deg,#ff5a4f,#5a8bff)}#hcc i{background:#7df9ff}#hc .sm{font-size:11px;color:#dfe9ee;margin-top:4px}#hcban{position:fixed;top:30%;left:50%;transform:translateX(-50%);font:800 30px system-ui;letter-spacing:3px;color:#fff;text-shadow:0 3px 14px #000;pointer-events:none;opacity:0;transition:opacity .25s;text-align:center}#hcover{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(10,4,6,.8);color:#fff;font-family:system-ui;text-align:center}#hcover h2{font-size:54px;letter-spacing:6px;margin:0;color:#ff5a4f}#hcover .t{font-size:72px;font-weight:800;font-variant-numeric:tabular-nums}#hcover .g{color:#ffce87;letter-spacing:4px;font-size:12px}#hcover table{margin:14px auto;font-size:15px;border-spacing:18px 4px}#hcover button{margin-top:10px;padding:12px 34px;font-size:16px;border:1px solid #ffce87;background:transparent;color:#ffce87;cursor:pointer;letter-spacing:3px}#hcover button:hover{background:#ffce87;color:#111}`;
+document.head.append(hcStyle);
+const hcUi = document.createElement("div");
+hcUi.id = "hc";
+hcUi.innerHTML = `<div class="lab">HEAT CLOCK</div><div class="big" id="hct">0:00.0</div><div class="stars" id="hcs"></div><div class="bar" id="hcb"><i></i></div><div class="bar" id="hcc"><i></i></div><div class="sm" id="hcm"></div>`;
+document.body.append(hcUi);
+const hcBan = document.createElement("div");
+hcBan.id = "hcban";
+document.body.append(hcBan);
+const hcOver = document.createElement("div");
+hcOver.id = "hcover";
+document.body.append(hcOver);
+function fmt(s) { const m = Math.floor(s / 60); return m + ":" + (s - m * 60).toFixed(1).padStart(4, "0"); }
+function banner(text) {
+  hcBan.textContent = text;
+  hcBan.style.opacity = 1;
+  clearTimeout(banner.t);
+  banner.t = setTimeout(() => (hcBan.style.opacity = 0), 1400);
+}
+const gb = new T.BoxGeometry(1, 1, 1), cyl = new T.CylinderGeometry(0.5, 0.5, 1, 10), cone = new T.ConeGeometry(0.4, 1, 8);
+const gmat = (c, o = {}) => new T.MeshStandardMaterial({ color: c, roughness: 0.7, ...o });
+const glassMat = gmat("#9fd6e8", { transparent: true, opacity: 0.4, metalness: 0.3, roughness: 0.1 });
+const debrisMat = gmat("#c9c9c0");
+const props = [];
+function addProp(kind, x, z) {
+  const g = new T.Group();
+  let r = 1;
+  if (kind === "cone") { const m = new T.Mesh(cone, gmat("#ff7a1a")); m.scale.set(1, 0.9, 1); m.position.y = 0.45; g.add(m); r = 0.9; }
+  if (kind === "hydrant") { const m = new T.Mesh(cyl, gmat("#d2362e")); m.scale.set(0.6, 0.9, 0.6); m.position.y = 0.45; g.add(m); r = 0.9; }
+  if (kind === "bin") { const m = new T.Mesh(cyl, gmat("#33403f")); m.scale.set(0.9, 1.1, 0.9); m.position.y = 0.55; g.add(m); r = 1; }
+  if (kind === "glass") {
+    for (const [px, pz, sx, sz] of [[0, -1.8, 0.1, 3.6], [0, 1.8, 0.1, 3.6]]) { const m = new T.Mesh(gb, glassMat); m.scale.set(sx, 2.6, sz); m.position.set(px, 1.5, pz * 0.5); g.add(m); }
+    const roof = new T.Mesh(gb, gmat("#3b4b4e")); roof.scale.set(1.8, 0.12, 3.8); roof.position.y = 2.85; g.add(roof);
+    r = 2.2;
+  }
+  g.position.set(x, 0.1, z);
+  scene.add(g);
+  props.push({ g, kind, r, x, z, dead: false });
+}
+for (const x of xs) for (const side of [-1, 1]) for (let z = -530; z < 240; z += 17) {
+  if (zs.some((q) => Math.abs(z - q) < 14)) continue;
+  const q = rnd();
+  if (q < 0.1) addProp("cone", x + side * 11.2, z);
+  else if (q < 0.16) addProp("hydrant", x + side * 12, z);
+  else if (q < 0.22) addProp("bin", x + side * 12.2, z);
+  else if (q < 0.27) addProp("glass", x + side * 12.6, z);
+}
+const shards = [];
+for (let i = 0; i < 90; i++) { const m = new T.Mesh(gb, glassMat); m.visible = false; m.userData.v = new T.Vector3(); scene.add(m); shards.push(m); }
+function burst(x, y, z, mat, n, power) {
+  let k = 0;
+  for (const m of shards) if (!m.visible && k < n) {
+    k++; m.visible = true; m.material = mat; m.scale.setScalar(0.12 + Math.random() * 0.25);
+    m.position.set(x, y, z);
+    m.userData.v.set((Math.random() - 0.5) * power, 3 + Math.random() * power * 0.6, (Math.random() - 0.5) * power);
+    m.userData.life = 1.6;
+  }
+}
+function crime(label, w) {
+  if (HC.over || time - crime.t < 0.3) return;
+  crime.t = time;
+  HC.crimes++;
+  HC.cool = 0;
+  if (!HC.chase) {
+    HC.chase = true; HC.clock = 0; HC.level = 1; HC.peak = 1; HC.nextEsc = 25; HC.crimeAcc = 0;
+    banner("HEAT CLOCK STARTED");
+  } else {
+    banner(label);
+    HC.crimeAcc += w;
+    if (HC.crimeAcc >= 8 && HC.level < 5) { HC.crimeAcc -= 8; HC.level++; HC.peak = Math.max(HC.peak, HC.level); banner("HEAT LEVEL " + HC.level); }
+  }
+  say("DISPATCH", label + ". All units respond.", false);
+  tone(220, 0.25, 0.15);
+}
+crime.t = -9;
+function smashProp(p) {
+  p.dead = true; p.g.visible = false; HC.smashes++;
+  const glass = p.kind === "glass";
+  burst(p.x, 1.4, p.z, glass ? glassMat : debrisMat, glass ? 28 : 12, glass ? 9 : 7);
+  tone(glass ? 900 : 140, glass ? 0.3 : 0.15, 0.2);
+  crime(glass ? "GLASS SMASHED" : p.kind === "hydrant" ? "HYDRANT HIT" : p.kind === "bin" ? "TRASH CAN HIT" : "CONE DOWN", glass ? 2 : p.kind === "cone" ? 0.5 : 1.2);
+}
+// Cop pool: patrol, interceptor, SUV + chopper
+const cops = [];
+const COPSPEC = { patrol: { c: "#e1e7e7", sp: 25, turn: 2.2, sc: 1 }, interceptor: { c: "#1d2428", sp: 31, turn: 2.8, sc: 1 }, suv: { c: "#2b3d66", sp: 22, turn: 1.7, sc: 1.25 } };
+const copMat = [gmat("#ff2a2a", { emissive: "#ff2a2a", emissiveIntensity: 2 }), gmat("#2a5aff", { emissive: "#2a5aff", emissiveIntensity: 2 })];
+for (let i = 0; i < 9; i++) {
+  const kind = i % 3 === 0 ? "patrol" : i % 3 === 1 ? "interceptor" : "suv", spec = COPSPEC[kind];
+  const g = vehicle(spec.c, true);
+  g.scale.setScalar(spec.sc);
+  const a = new T.Mesh(gb, copMat[0]), b = new T.Mesh(gb, copMat[1]);
+  a.scale.set(0.6, 0.25, 0.5); b.scale.copy(a.scale); a.position.set(-0.3, 2.2, 0); b.position.set(0.3, 2.2, 0);
+  g.add(a, b);
+  g.position.set(0, -200, 0);
+  scene.add(g);
+  cops.push({ g, kind, spec, active: false, ang: 0, v: 0, a, b });
+}
+const chopper = new T.Group();
+{ const body = new T.Mesh(gb, gmat("#161b1e")); body.scale.set(2.2, 1.6, 5); chopper.add(body);
+  const tail = new T.Mesh(gb, gmat("#161b1e")); tail.scale.set(0.4, 0.4, 5); tail.position.z = -4.5; chopper.add(tail);
+  const rotor = new T.Mesh(gb, gmat("#aaa")); rotor.scale.set(9, 0.08, 0.5); rotor.position.y = 1.1; chopper.add(rotor); chopper.userData.rotor = rotor;
+  const beam = new T.Mesh(new T.ConeGeometry(7, 26, 16, 1, true), new T.MeshBasicMaterial({ color: "#fff6cf", transparent: true, opacity: 0.16, side: T.DoubleSide, depthWrite: false }));
+  beam.position.y = -13; chopper.add(beam); }
+chopper.position.set(0, -200, 0);
+scene.add(chopper);
+let siren, sirenGain;
+function hcSiren(on, near) {
+  if (!audio) return;
+  if (!siren) {
+    siren = audio.createOscillator(); siren.type = "square"; sirenGain = audio.createGain(); sirenGain.gain.value = 0;
+    siren.connect(sirenGain).connect(master); siren.start();
+  }
+  siren.frequency.setTargetAtTime(760 + Math.sin(time * 7) * 260, audio.currentTime, 0.03);
+  sirenGain.gain.setTargetAtTime(on && !muted ? 0.008 + 0.012 * near : 0, audio.currentTime, 0.2);
+}
+function inSolid(x, z, y) { return solid.some((b) => y < b.h && Math.abs(x - b.x) < b.w && Math.abs(z - b.z) < b.d); }
+function landOk(x, z) { return (x > -258 && x < 138 && z > -573 && z < 263) || (x >= 138 && x < 455 && Math.abs(z + 154) < 10); }
+function spawnCop(c) {
+  for (let tries = 0; tries < 12; tries++) {
+    const ax = xs[Math.floor(Math.random() * 4)] + (Math.random() - 0.5) * 8, az = car.position.z + (Math.random() < 0.5 ? -1 : 1) * (80 + Math.random() * 60);
+    const x = Math.random() < 0.5 ? ax : car.position.x + (Math.random() - 0.5) * 100, z = Math.random() < 0.5 ? az : zs[Math.floor(Math.random() * zs.length)];
+    if (!landOk(x, z) || Math.hypot(x - car.position.x, z - car.position.z) < 70 || inSolid(x, z, 1)) continue;
+    c.g.position.set(x, 0.45, z); c.ang = Math.atan2(car.position.x - x, car.position.z - z); c.v = 8; c.active = true; return;
+  }
+}
+function heatTick(t, dt) {
+  if (HC.over || !HC.chase) return;
+  HC.clock += dt; HC.dist += Math.abs(speed) * dt;
+  if (HC.clock >= HC.nextEsc && HC.level < 5) { HC.level++; HC.peak = Math.max(HC.peak, HC.level); HC.nextEsc += 25; banner("HEAT LEVEL " + HC.level); tone(300, 0.3, 0.12); }
+  heat = HC.level;
+  const want = [0, 2, 3, 5, 7, 9][HC.level];
+  let nAct = cops.filter((c) => c.active).length;
+  if (nAct < want && t > HC.spawnAt) { const c = cops.find((k) => !k.active); if (c) { spawnCop(c); HC.spawnAt = t + 1.2; } }
+  let near = 0, nearest = 999;
+  const cp = car.position;
+  for (const c of cops) {
+    if (!c.active) continue;
+    const p = c.g.position;
+    if (c.g.position.y < 0) continue;
+    const lead = c.kind === "interceptor" ? 0.7 : 0.3;
+    const tx = cp.x - Math.sin(heading) * speed * lead, tz = cp.z - Math.cos(heading) * speed * lead;
+    let want2 = Math.atan2(tx - p.x, tz - p.z), da = want2 - c.ang;
+    da = Math.atan2(Math.sin(da), Math.cos(da));
+    c.ang += Math.max(-c.spec.turn * dt, Math.min(c.spec.turn * dt, da));
+    const d = Math.hypot(cp.x - p.x, cp.z - p.z);
+    const top = c.spec.sp * (1 + 0.04 * HC.level);
+    c.v += (Math.min(top, d < 8 ? Math.max(speed, 10) + 3 : top) - c.v) * Math.min(1, dt * 1.2);
+    const nx = p.x + Math.sin(c.ang) * c.v * dt, nz = p.z + Math.cos(c.ang) * c.v * dt;
+    if (landOk(nx, nz) && !inSolid(nx, nz, 1)) { p.x = nx; p.z = nz; }
+    else if (landOk(nx, p.z) && !inSolid(nx, p.z, 1)) p.x = nx;
+    else if (landOk(p.x, nz) && !inSolid(p.x, nz, 1)) p.z = nz;
+    else c.v *= 0.5;
+    c.g.rotation.y = c.ang;
+    const f = Math.floor(t * 8) % 2;
+    c.a.visible = f === 0; c.b.visible = f === 1;
+    if (d < nearest) nearest = d;
+    if (d < 7 && cp.y < 3) near++;
+    if (c.kind === "suv" && d < 3.4) { speed *= 1 - dt * 2.2; }
+    if (d > 260) { c.active = false; p.y = -200; }
+  }
+  let chop = 0;
+  if (HC.level >= 4) {
+    if (chopper.position.y < 0) chopper.position.set(cp.x + 60, 30, cp.z + 60);
+    const tx = cp.x + Math.sin(t * 0.4) * 10, tz = cp.z + Math.cos(t * 0.4) * 10;
+    chopper.position.x += (tx - chopper.position.x) * Math.min(1, dt * 0.9);
+    chopper.position.z += (tz - chopper.position.z) * Math.min(1, dt * 0.9);
+    chopper.position.y = 28 + Math.sin(t) * 1.5;
+    chopper.rotation.y = Math.atan2(cp.x - chopper.position.x, cp.z - chopper.position.z);
+    chopper.userData.rotor.rotation.y = t * 30;
+    if (Math.hypot(cp.x - chopper.position.x, cp.z - chopper.position.z) < 14) chop = 1;
+  } else chopper.position.y = -200;
+  if (nearest > 75 && !chop) HC.cool += dt; else HC.cool = Math.max(0, HC.cool - dt * 2);
+  if (HC.cool > 9) { HC.cool = 0; if (HC.level > 1) { HC.level--; HC.nextEsc = HC.clock + 25; banner("LOST THEM - HEAT " + HC.level); } else banner("STAY OUT OF SIGHT"); }
+  const rate = near * 0.2 * (Math.abs(speed) < 8 ? 1.7 : 1) + chop * 0.12;
+  HC.busted = Math.max(0, Math.min(1, HC.busted + (rate ? rate * dt : -dt * 0.35)));
+  hcSiren(true, Math.max(0, 1 - nearest / 150));
+  if (HC.busted >= 1) gameOver();
+}
+function gameOver() {
+  HC.over = true; speed = 0; hcSiren(false, 0);
+  const isBest = HC.clock > HC.best;
+  if (isBest) { HC.best = HC.clock; try { localStorage.setItem("heatclock.best", String(HC.clock)); } catch (e) {} }
+  hcOver.innerHTML = `<div class="g">BUSTED</div><h2>CAUGHT</h2><div class="g" style="margin-top:14px">YOUR HEAT CLOCK</div><div class="t">${fmt(HC.clock)}</div>${isBest ? '<div class="g" style="color:#7df9ff">NEW BEST</div>' : ""}<table><tr><td>Best</td><td>${fmt(HC.best)}</td></tr><tr><td>Distance</td><td>${(HC.dist / 1000).toFixed(2)} km</td></tr><tr><td>Peak heat</td><td>${"★".repeat(HC.peak)}</td></tr><tr><td>Smashed</td><td>${HC.smashes}</td></tr><tr><td>People hit</td><td>${HC.hits}</td></tr></table><button id="hcre">RUN IT BACK  ·  ENTER</button>`;
+  hcOver.style.display = "flex";
+  $("hcre").onclick = () => reset();
+  tone(120, 0.6, 0.25);
+}
+function restartRun() {
+  Object.assign(HC, { chase: false, over: false, clock: 0, level: 0, peak: 0, busted: 0, cool: 0, dist: 0, smashes: 0, hits: 0, crimes: 0, crimeAcc: 0, nextEsc: 25 });
+  for (const c of cops) { c.active = false; c.g.position.y = -200; }
+  chopper.position.y = -200;
+  for (const p of props) { p.dead = false; p.g.visible = true; }
+  for (const s of shards) s.visible = false;
+  for (const p of people) if (p.fly) { p.fly = null; p.g.rotation.x = 0; p.g.position.y = 0.5; }
+  hcOver.style.display = "none";
+  hcSiren(false, 0);
+}
+function hcWorld(t, dt) {
+  if (!active || HC.over) return;
+  const cp = car.position;
+  if (cp.y < 2.5) {
+    for (const p of props) if (!p.dead && Math.hypot(cp.x - p.x, cp.z - p.z) < p.r + 1.1 && Math.abs(speed) > 2) smashProp(p);
+    for (const p of people) {
+      if (p.fly) continue;
+      const q = p.g.position;
+      if (Math.abs(q.x - cp.x) < 2 && Math.abs(q.z - cp.z) < 2 && Math.hypot(q.x - cp.x, q.z - cp.z) < 1.9 && Math.abs(speed) > 2.5) {
+        p.fly = { vx: -Math.sin(heading) * speed * 0.9, vy: 6 + Math.abs(speed) * 0.2, vz: -Math.cos(heading) * speed * 0.9, spin: 6 };
+        HC.hits++; HC.smashes++;
+        crime("PEDESTRIAN HIT", 3);
+      }
+    }
+  }
+}
+function flyPed(p, dt) {
+  const f = p.fly, q = p.g.position;
+  q.x += f.vx * dt; q.z += f.vz * dt; q.y += f.vy * dt; f.vy -= 25 * dt;
+  if (q.y <= 0.5) { q.y = 0.5; f.vx *= 0.9; f.vz *= 0.9; f.vy = 0; f.spin = 0; p.g.rotation.x = -1.45; }
+  else p.g.rotation.x += f.spin * dt;
+}
+function hcFx(t, dt) {
+  for (const m of shards) if (m.visible) {
+    const v = m.userData.v; v.y -= 22 * dt;
+    m.position.addScaledVector(v, dt);
+    m.rotation.x += dt * 8;
+    if ((m.userData.life -= dt) < 0 || m.position.y < 0) m.visible = false;
+  }
+  const lab = HC.over ? "CAUGHT" : HC.chase ? "" : "";
+  $("hct").textContent = fmt(HC.clock);
+  $("hcs").textContent = HC.chase ? "★".repeat(HC.level) + "☆".repeat(5 - HC.level) : "";
+  const bb = $("hcb"), cb = $("hcc");
+  bb.style.display = HC.chase ? "block" : "none"; bb.firstChild.style.width = HC.busted * 100 + "%";
+  cb.style.display = HC.chase && HC.cool > 0.3 ? "block" : "none"; cb.firstChild.style.width = Math.min(100, HC.cool / 9 * 100) + "%";
+  $("hcm").textContent = HC.chase ? `BEST ${fmt(HC.best)} · ${HC.smashes} smashed · ${(HC.dist / 1000).toFixed(2)} km${HC.cool > 0.3 ? " · LOSING THEM" : ""}` : `BEST ${fmt(HC.best)} · smash, crash or run someone over to start the clock`;
+}
+function hudHeat() { return HC.chase ? "★".repeat(HC.level) + " HEAT " + HC.level : "FREE ROAM"; }
+function drawCops() {
+  map.save();
+  for (const c of cops) if (c.active) {
+    const x = 12 + (c.g.position.x + 264) * 0.22, y = (c.g.position.z + 580) * 0.2;
+    if (Math.hypot(x - 85, y - 85) > 80) continue;
+    map.fillStyle = Math.floor(time * 6) % 2 ? "#ff4a4a" : "#4a7bff";
+    map.fillRect(x - 2, y - 2, 4, 4);
+  }
+  map.restore();
+}
+function heatState() { return { hc: { chase: HC.chase, over: HC.over, clock: HC.clock, level: HC.level, busted: HC.busted, smashes: HC.smashes, hits: HC.hits, best: HC.best, cops: cops.filter((c) => c.active).length, props: props.length } }; }
+addEventListener("keydown", (e) => { if (e.code === "Enter" && HC.over) reset(); });
+window.__hc = { HC, crime, props, cops, people, car, gameOver };
+
 // Batch static streets and dynamic pedestrian/vehicle boxes to keep draw calls bounded.
 const batches = [];
 for (const dynamic of [false, true]) {
