@@ -1,0 +1,29 @@
+{
+  "sourceUrl": "https://api.openstreetmap.org/api/0.6/map.json?bbox=-73.994,40.750,-73.978,40.760",
+  "acquiredDate": "2026-10-16",
+  "sourceLicence": "ODbL-1.0",
+  "licenceUrl": "https://www.openstreetmap.org/copyright",
+  "boundsWgs84": [
+    -73.994,
+    40.75,
+    -73.978,
+    40.76
+  ],
+  "inputSha256": "2f50e2ddf21f5bff45768a785369feb2fcb84fbf7a0928904a8e6b9d144678eb",
+  "converter": "tools/city/import.mjs v1",
+  "sourceSubset": "source.osm.json",
+  "limitations": [
+    "Flat local projection; elevated/tunnel roads excluded",
+    "Widths and missing heights estimated",
+    "Boundary-crossing road segments omitted",
+    "Multi-outer building relations not yet supported",
+    "Road graph is a source-topology prototype; turn restrictions and lane connectors not yet imported"
+  ],
+  "counts": {
+    "roads": 230,
+    "buildings": 1160,
+    "rejectedBuildings": 65,
+    "graphNodes": 651,
+    "graphEdges": 774
+  }
+}

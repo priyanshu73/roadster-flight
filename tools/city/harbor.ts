@@ -1,0 +1,26 @@
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { createHarborCity } from '../../src/world/HarborCity';
+const path = 'public/cities/new-york-harbor';
+mkdirSync(path, { recursive: true });
+writeFileSync(`${path}/district.json`, JSON.stringify(createHarborCity()));
+writeFileSync(
+  `${path}/source.json`,
+  JSON.stringify(
+    {
+      kind: 'original-procedural',
+      description: 'Fictional NYC-inspired harbor district. Not surveyed New York geography.',
+      generator: 'src/world/HarborCity.ts',
+      sourceRepository: 'https://github.com/priyanshu73/roadster-flight',
+      featureReferences: [
+        'https://github.com/priyanshu73/roadster-flight/pull/1',
+        'https://github.com/priyanshu73/roadster-flight/pull/2',
+        'https://github.com/priyanshu73/roadster-flight/pull/3',
+      ],
+      assets:
+        'Original code-generated meshes, textures, dialogue and audio synthesis; no external asset downloads.',
+      codeLicence: 'Original project code licence decision pending; see THIRD_PARTY_NOTICES.md.',
+    },
+    null,
+    2,
+  ) + '\n',
+);
